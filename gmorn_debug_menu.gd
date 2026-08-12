@@ -328,14 +328,20 @@ func _build_panel() -> void:
 	_panel.theme = _ui_theme()
 	add_child(_panel)
 
-	var scroll := ScrollContainer.new()
-	_panel.add_child(scroll)
-
 	var column := VBoxContainer.new()
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(column)
+	_panel.add_child(column)
 
-	column.add_child(_items)
+	# 項目だけを流れるようにする。項目が板より多くなっても、下の一行は
+	# 流れずに残る。以前は一行ごと流していたため、項目が増えると押した結果が
+	# 画面の外へ出て見えなくなっていた。
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	column.add_child(scroll)
+
+	_items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_items)
 
 	column.add_child(HSeparator.new())
 

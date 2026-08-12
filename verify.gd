@@ -111,6 +111,16 @@ func _run() -> void:
 	menu.open()
 	assert(menu.is_open(), "開き直せない")
 
+	# 状況の一行は流れる側に入れない。項目が増えても押した結果が見えるように
+	# するためで、以前は一行ごと流れて画面の外へ出ていた。
+	var scrolls: Array = []
+	for child in menu._status_label.get_parent().get_children():
+		if child is ScrollContainer:
+			scrolls.append(child)
+	assert(scrolls.size() == 1, "流れる場所が %d 個ある" % scrolls.size())
+	assert(menu._items.get_parent() == scrolls[0], "項目が流れる側に入っていない")
+	assert(menu._status_label.get_parent() != scrolls[0], "状況の一行が流れる側に入っている")
+
 	# 書体を指定していなければテーマを作らない。既定のままにする。
 	assert(menu._ui_theme() == null, "指定していないのにテーマを作った")
 
