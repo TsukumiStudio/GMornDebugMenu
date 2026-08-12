@@ -51,11 +51,18 @@ var _confirm_generation := 0
 func _ready() -> void:
 	settings = SETTINGS.new()
 	settings.load_from_environment()
-	if not settings.enabled:
-		return
+	# 項目の置き場は必ず作る。板を作らない実行でも、足した項目が返す `Label` や
+	# `Button` は生きていなければならない。捨ててしまうと、呼ぶ側が持っている
+	# 参照が freed になり、書き込んだ瞬間に落ちる。
+	_items = VBoxContainer.new()
+	_items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# 画面の無い実行では板を作らない。作っても誰も見ないうえ、検証のたびに
-	# 木へ余計なノードが増える。
-	if DisplayServer.get_name() == "headless" and not settings.build_when_headless:
+	# 木へ余計なノードが増える。切ってあるときも同じ。
+	if not settings.enabled \
+			or (DisplayServer.get_name() == "headless" and not settings.build_when_headless):
+		# 置き場だけを隠して持つ。木の下に居るので、この板と一緒に片付く。
+		_items.visible = false
+		add_child(_items)
 		return
 	_build_ui()
 	# 開発用の板は製品画面ではない。拍動する釦を使っていても、ここでは揺らさない。
@@ -198,10 +205,10 @@ func clear_items() -> void:
 
 func _add_item(control: Control) -> void:
 	if not is_instance_valid(_items):
-		# 板が無い実行（ヘッドレスや切ってあるとき）では捨てる。呼ぶ側に
-		# 「板があるか」を書かせないために、黙って受け取る。
 		control.queue_free()
 		return
+	# 板が無い実行でも同じように受け取る。呼ぶ側に「板があるか」を書かせない。
+	# 置き場ごと隠してあるので、出ることはない。
 	_items.add_child(control)
 	_disable_beat_scale(control)
 
@@ -288,8 +295,6 @@ func _build_panel() -> void:
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(column)
 
-	_items = VBoxContainer.new()
-	_items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_child(_items)
 
 	column.add_child(HSeparator.new())
