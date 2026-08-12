@@ -47,6 +47,7 @@ var _button: Button
 var _panel: PanelContainer
 var _items: VBoxContainer
 var _status_label: Label
+var _theme: Theme
 ## 二度押しの世代。押し直しの待ち時間が重なっても、古い待ちが新しい構えを
 ## 解いてしまわないようにするために数える。
 var _confirm_generation := 0
@@ -285,6 +286,7 @@ func _build_ui() -> void:
 	_button.offset_bottom = _button.offset_top + settings.button_size.y
 	_button.modulate.a = settings.button_alpha
 	_button.pressed.connect(toggle)
+	_button.theme = _ui_theme()
 	add_child(_button)
 	_build_panel()
 
@@ -321,6 +323,9 @@ func _build_panel() -> void:
 		else -settings.panel_size.y - settings.button_size.y - settings.button_margin.y - 8.0
 	_panel.offset_bottom = _panel.offset_top + settings.panel_size.y
 	_panel.add_theme_stylebox_override("panel", _panel_style())
+	# 書体は板そのものへ付ける。テーマは子へ伝わるので、行を足すたびに
+	# 指定し直さなくてよい。
+	_panel.theme = _ui_theme()
 	add_child(_panel)
 
 	var scroll := ScrollContainer.new()
@@ -339,6 +344,27 @@ func _build_panel() -> void:
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_child(_status_label)
+
+## 板で使うテーマを作る。書体の指定が無ければ `null` を返し、既定のままにする。
+##
+## 既定の書体は日本語の字を持たない。卓上では実行環境の書体が肩代わりするため
+## 気付けないが、肩代わりの無い環境（Webへ書き出したもの）では日本語がすべて
+## 豆腐になる。実際に配ったWeb版で、板の項目名が全部四角になっていた。
+func _ui_theme() -> Theme:
+	if _theme != null:
+		return _theme
+	if settings.font_path.is_empty() and settings.font_size <= 0:
+		return null
+	_theme = Theme.new()
+	if not settings.font_path.is_empty():
+		var font := load(settings.font_path) as Font
+		if font != null:
+			_theme.default_font = font
+		else:
+			push_warning("書体を読めなかったため既定のままにする: %s" % settings.font_path)
+	if settings.font_size > 0:
+		_theme.default_font_size = settings.font_size
+	return _theme
 
 func _panel_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()

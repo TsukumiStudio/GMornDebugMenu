@@ -31,6 +31,15 @@ var panel_size := Vector2(420.0, 520.0)
 var panel_color := Color(0.055, 0.035, 0.09, 0.97)
 ## 板の縁の色。
 var panel_border_color := Color(1.0, 0.3, 0.72, 1.0)
+## 板で使う書体（`res://` から始まる置き場）。空なら既定のまま。
+##
+## 指定しないと、Godotが用意している既定の書体で描く。この書体は日本語の
+## 字を持たないが、卓上では実行環境の書体が肩代わりするため気付けない。
+## 肩代わりの無い環境（Webへ書き出したもの）では、日本語がすべて豆腐になる。
+## 実際に配ったWeb版で、板の項目名が全部四角になっていた。
+var font_path := ""
+## 板の文字の大きさ。0なら既定のまま。
+var font_size := 0
 
 const SETTING_PREFIX := "gmorn_debug_menu/"
 
@@ -51,6 +60,12 @@ func load_from_environment() -> void:
 		float(_setting("panel_height", panel_size.y)))
 	panel_color = _color("panel_color", panel_color)
 	panel_border_color = _color("panel_border_color", panel_border_color)
+	font_path = String(_setting("font_path", font_path))
+	font_size = int(_setting("font_size", font_size))
+	# 何も指定が無ければ、プロジェクト全体の書体を借りる。作品が既に持って
+	# いるものを使えば、板のためだけに置き場を書かせなくて済む。
+	if font_path.is_empty():
+		font_path = String(_setting_at("gui/theme/custom_font", ""))
 	# 環境変数は最後に効かせる。撮影のときだけ消したい、といった使い方をする。
 	if OS.get_environment("GMORN_DEBUG_MENU_DISABLED") == "1":
 		enabled = false
@@ -66,7 +81,9 @@ static func _color(key: String, fallback_value: Color) -> Color:
 	return fallback_value
 
 static func _setting(key: String, fallback_value: Variant) -> Variant:
-	var path := SETTING_PREFIX + key
+	return _setting_at(SETTING_PREFIX + key, fallback_value)
+
+static func _setting_at(path: String, fallback_value: Variant) -> Variant:
 	if not ProjectSettings.has_setting(path):
 		return fallback_value
 	return ProjectSettings.get_setting(path, fallback_value)

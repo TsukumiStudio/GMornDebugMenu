@@ -111,6 +111,30 @@ func _run() -> void:
 	menu.open()
 	assert(menu.is_open(), "開き直せない")
 
+	# 書体を指定していなければテーマを作らない。既定のままにする。
+	assert(menu._ui_theme() == null, "指定していないのにテーマを作った")
+
+	# 大きさだけでも指定すればテーマができ、板と釦の両方へ付く。
+	ProjectSettings.set_setting("gmorn_debug_menu/font_size", 25)
+	var themed: CanvasLayer = script.new()
+	root.add_child(themed)
+	await process_frame
+	assert(themed._panel.theme != null, "板へテーマが付いていない")
+	assert(themed._button.theme != null, "釦へテーマが付いていない")
+	assert(themed._panel.theme.default_font_size == 25,
+		"文字の大きさが %d" % themed._panel.theme.default_font_size)
+	# 板と釦で同じものを使い回す。作り直すと、書体が二重に読み込まれる。
+	assert(themed._panel.theme == themed._button.theme, "テーマを作り直している")
+	ProjectSettings.set_setting("gmorn_debug_menu/font_size", 0)
+
+	# 読めない置き場を指しても落ちない。既定のままにするだけ。
+	ProjectSettings.set_setting("gmorn_debug_menu/font_path", "res://無い書体.otf")
+	var broken: CanvasLayer = script.new()
+	root.add_child(broken)
+	await process_frame
+	assert(broken._panel != null, "書体を読めないだけで板が作られなくなった")
+	ProjectSettings.set_setting("gmorn_debug_menu/font_path", "")
+
 	# 釦は隠せる。撮影や配信のときに使う。
 	menu.set_button_visible(false)
 	assert(not menu._button.visible, "隠れない")

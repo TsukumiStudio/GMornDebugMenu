@@ -94,6 +94,19 @@ func _ready() -> void:
 | 釦の濃さ | `gmorn_debug_menu/button_alpha` | — | `0.82` |
 | 板の大きさ | `gmorn_debug_menu/panel_width` / `panel_height` | — | `420` / `520` |
 | 板の色 | `gmorn_debug_menu/panel_color` / `panel_border_color` | — | 濃紫 / 桃 |
+| 書体 | `gmorn_debug_menu/font_path` | — | `gui/theme/custom_font` があればそれ |
+| 文字の大きさ | `gmorn_debug_menu/font_size` | — | `0`（既定のまま） |
+
+**日本語などを出すなら書体を指定する。** Godotの既定の書体はASCIIしか持たない。卓上では実行環境の書体が肩代わりするため気付けないが、肩代わりの無い環境（Webへ書き出したもの）では文字がすべて豆腐になる。実際に配ったWeb版で、板の項目名が全部四角になっていた。
+
+```
+[gmorn_debug_menu]
+
+font_path="res://assets/fonts/myfont.otf"
+font_size=25
+```
+
+`gui/theme/custom_font` をプロジェクト全体で指定してあれば、何も書かなくてもそれを借りる。
 
 同じ隅に別の釦（[GMornIssueMaker](https://github.com/TsukumiStudio/GMornIssueMaker) の不具合報告など）があるときは、`button_margin_y` を縦にずらして重なりを避ける。
 
