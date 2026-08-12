@@ -26,6 +26,9 @@ const BEAT_SCALE_GROUP := &"gmorn_beat_scaler"
 
 const SETTINGS := preload("gmorn_debug_menu_settings.gd")
 
+## 数の行が、いまの値の読み方をしまう場所。行と一緒に消える。
+const NUMBER_GETTER_META := &"gmorn_debug_menu_getter"
+
 ## 釦へ出す工具の絵。
 ##
 ## 絵文字は環境の書体に左右されて豆腐になることがあるため、絵そのものを持つ。
@@ -147,12 +150,31 @@ func add_number(label: String, getter: Callable, setter: Callable,
 		setter.call(spin.value)
 		set_status("%s を %s にしました" % [label, spin.value]))
 	row.add_child(apply)
+	# 読み直し方を行そのものに持たせる。`panel_toggled` へ繋ぐと、`clear_items()`
+	# で行を捨てた後も繋がりだけが残り、次に板を開いたときに解放済みの入力欄へ
+	# 書き込んで落ちる。行と一緒に消えるところへ置けば、その形にならない。
+	spin.set_meta(NUMBER_GETTER_META, getter)
 	_add_item(row)
-	# 板を開くたびに、いまの値へ戻す。開いている間に外で変わることがある。
-	panel_toggled.connect(func(opened: bool) -> void:
-		if opened:
-			spin.set_value_no_signal(float(getter.call())))
 	return spin
+
+## 数の行を、いまの値へ戻す。
+##
+## 板を開くたびに呼ばれる。開いている間に外で値が変わったときは、変えた側から
+## 呼ぶ。読み直さないと、古い値のまま「決定」を押して上書きしてしまう。
+func refresh_numbers() -> void:
+	if not is_instance_valid(_items):
+		return
+	_refresh_numbers_in(_items)
+
+func _refresh_numbers_in(node: Node) -> void:
+	for child in node.get_children():
+		if child is SpinBox and child.has_meta(NUMBER_GETTER_META):
+			var getter: Callable = child.get_meta(NUMBER_GETTER_META)
+			# 読み直し方が指す先が消えていることがある。行を足した側が
+			# 先に片付いた場合で、そのときは触らない。
+			if getter.is_valid():
+				(child as SpinBox).set_value_no_signal(float(getter.call()))
+		_refresh_numbers_in(child)
 
 ## 選ぶ行。`on_selected` には選んだ番号が渡る。
 func add_option(label: String, options: PackedStringArray, on_selected: Callable,
@@ -195,10 +217,17 @@ func add_separator() -> HSeparator:
 	return separator
 
 ## 足した項目をすべて外す。場面が変わって、前の場面の項目が意味を失ったときに使う。
+##
+## 板は自動読み込みなので、項目を足した側より長生きする。足した側が片付くときは
+## ここを呼ぶ。呼ばないと、消えたものを捕まえたままの釦が押せる状態で残る。
 func clear_items() -> void:
 	if not is_instance_valid(_items):
 		return
+	# 構えている釦の待ちを無効にする。世代を進めておけば、待ちが明けても
+	# 消えた釦へ書き込まない。
+	_confirm_generation += 1
 	for child in _items.get_children():
+		_items.remove_child(child)
 		child.queue_free()
 
 # --- 中身 -------------------------------------------------------------------
@@ -216,12 +245,18 @@ func _set_open(value: bool) -> void:
 	if not is_instance_valid(_panel) or _panel.visible == value:
 		return
 	_panel.visible = value
+	if value:
+		refresh_numbers()
 	panel_toggled.emit(value)
 
 func _disarm_later(button: Button, label: String, armed: Array,
 		generation: int, seconds: float) -> void:
 	await get_tree().create_timer(seconds).timeout
 	if generation != _confirm_generation:
+		return
+	# 待っている間に `clear_items()` で釦が消えていることがある。この待ちは板
+	# （自動読み込み）に属するので、釦だけが先に片付く形になる。
+	if not is_instance_valid(button):
 		return
 	armed[0] = false
 	button.text = label

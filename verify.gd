@@ -91,11 +91,25 @@ func _run() -> void:
 	menu.set_status("試した")
 	assert(menu._status_label.text == "試した", "状況が %s" % menu._status_label.text)
 
-	# まとめて外せる。場面が変わって項目が意味を失ったときに使う。
+	# 開いている間に外で値が変わったら、変えた側から読み直させる。読み直さないと、
+	# 古い値のまま「決定」を押して変更をなかったことにしてしまう。
+	stored[0] = 7.0
+	menu.refresh_numbers()
+	assert(is_equal_approx(spin.value, 7.0), "読み直しても %f のまま" % spin.value)
+
+	# 構えたまま項目を外しても、待ちが明けたときに落ちない。板は自動読み込みなので
+	# 待ちだけが残り、釦が先に消える形になる。
+	var short_confirm: Button = menu.add_confirm_button(
+		"短い確認", func() -> void: pass, "もう一度", 0.2)
+	short_confirm.pressed.emit()
 	menu.clear_items()
-	await process_frame
-	assert(menu._items.get_child_count() == 0,
-		"外したのに %d 個残っている" % menu._items.get_child_count())
+	await create_timer(0.5).timeout
+
+	# 外した後に開き直しても落ちない。数の行の読み直しが、消えた入力欄を
+	# 触らないこと。
+	menu.close()
+	menu.open()
+	assert(menu.is_open(), "開き直せない")
 
 	# 釦は隠せる。撮影や配信のときに使う。
 	menu.set_button_visible(false)
