@@ -1,0 +1,106 @@
+extends SceneTree
+
+## 項目の足し方と、二度押しの構えを確かめる。
+##
+## 画面の無い実行では既定で板を作らない。作らない側でも、項目を足す呼び出しが
+## そのまま通ることが要る。呼ぶ側に「板があるか」を書かせないためである。
+## ここでは両方を見る。
+
+const MENU_PATH := "res://addons/gmorn_debug_menu/gmorn_debug_menu.gd"
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+func _run() -> void:
+	var script: GDScript = load(MENU_PATH)
+
+	# 板を作らない側。項目を足しても落ちない。
+	var quiet: CanvasLayer = script.new()
+	root.add_child(quiet)
+	await process_frame
+	assert(not quiet.is_open(), "板が無いのに開いていると言う")
+	quiet.add_button("何か", func() -> void: pass)
+	quiet.add_label("見るだけ")
+	quiet.add_toggle("入り切り", func(_v: bool) -> void: pass)
+	quiet.set_status("何も起きない")
+	quiet.toggle()
+	assert(not quiet.is_open(), "板が無いのに開いた")
+
+	# ここから先は板を作らせる。
+	ProjectSettings.set_setting("gmorn_debug_menu/build_when_headless", true)
+	var menu: CanvasLayer = script.new()
+	root.add_child(menu)
+	await process_frame
+	assert(not menu.is_open(), "はじめから開いている")
+
+	# 開け閉めのたびに知らせが流れる。
+	var toggles: Array = []
+	menu.panel_toggled.connect(func(opened: bool) -> void: toggles.append(opened))
+	menu.open()
+	assert(menu.is_open(), "開かない")
+	menu.open()
+	assert(toggles.size() == 1, "同じ状態で流れている: %d" % toggles.size())
+	menu.close()
+	assert(not menu.is_open(), "閉じない")
+	assert(toggles == [true, false], "知らせの中身が %s" % str(toggles))
+
+	# 押すと呼ばれる。
+	var pressed: Array = []
+	var button: Button = menu.add_button("押す", func() -> void: pressed.append(true))
+	button.pressed.emit()
+	assert(pressed.size() == 1, "押しても呼ばれない")
+
+	# 二度押しの釦は、1度目では通さない。
+	var erased: Array = []
+	var danger: Button = menu.add_confirm_button(
+		"削除", func() -> void: erased.append(true), "もう一度押して削除", 3.0)
+	danger.pressed.emit()
+	assert(erased.is_empty(), "1度目で通ってしまった")
+	assert(danger.text == "もう一度押して削除", "構えた文字が %s" % danger.text)
+	danger.pressed.emit()
+	assert(erased.size() == 1, "2度目で通らない")
+	assert(danger.text == "削除", "通した後の文字が %s" % danger.text)
+
+	# 数の行は、決めたときだけ受け口へ渡る。
+	var stored := [0.0]
+	var spin: SpinBox = menu.add_number("お金",
+		func() -> float: return stored[0],
+		func(value: float) -> void: stored[0] = value,
+		0.0, 1000.0, 1.0)
+	spin.value = 500.0
+	assert(stored[0] == 0.0, "決める前に渡っている")
+	# 「決定」は数の行の3つ目に置いてある。
+	var apply := spin.get_parent().get_child(2) as Button
+	apply.pressed.emit()
+	assert(stored[0] == 500.0, "決めても渡らない: %f" % stored[0])
+
+	# 板を開き直すと、いまの値へ戻る。開いている間に外で変わることがある。
+	stored[0] = 42.0
+	menu.open()
+	assert(is_equal_approx(spin.value, 42.0), "開き直しても %f のまま" % spin.value)
+
+	# 選ぶ行は選んだ番号を渡す。
+	var chosen := [-1]
+	var option: OptionButton = menu.add_option("状況",
+		PackedStringArray(["なし", "地雷", "天使"]),
+		func(index: int) -> void: chosen[0] = index)
+	option.item_selected.emit(2)
+	assert(chosen[0] == 2, "選んだ番号が %d" % chosen[0])
+
+	# 何をしたかを返す一行が書き換わる。効いたのかどうかが見えないと困る。
+	menu.set_status("試した")
+	assert(menu._status_label.text == "試した", "状況が %s" % menu._status_label.text)
+
+	# まとめて外せる。場面が変わって項目が意味を失ったときに使う。
+	menu.clear_items()
+	await process_frame
+	assert(menu._items.get_child_count() == 0,
+		"外したのに %d 個残っている" % menu._items.get_child_count())
+
+	# 釦は隠せる。撮影や配信のときに使う。
+	menu.set_button_visible(false)
+	assert(not menu._button.visible, "隠れない")
+
+	print("知らせ=%s 数=%f 選び=%d" % [str(toggles), stored[0], chosen[0]])
+	print("GMORN DEBUG MENU VERIFY: PASS")
+	quit(0)
