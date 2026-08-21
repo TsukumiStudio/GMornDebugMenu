@@ -26,6 +26,10 @@ const BEAT_SCALE_GROUP := &"gmorn_beat_scaler"
 
 const SETTINGS := preload("gmorn_debug_menu_settings.gd")
 
+## しまう先の節と鍵。他の値を並べて置けるように節を切ってある。
+const STORE_SECTION := "gmorn_debug_menu"
+const STORE_VOLUME_KEY := "volume_multiplier"
+
 ## 数の行が、いまの値の読み方をしまう場所。行と一緒に消える。
 const NUMBER_GETTER_META := &"gmorn_debug_menu_getter"
 
@@ -62,6 +66,9 @@ var _confirm_generation := 0
 func _ready() -> void:
 	settings = SETTINGS.new()
 	settings.load_from_environment()
+	# 覚えてある倍率を先に戻す。板を作る前に読むので、つまみが最初から
+	# その位置で出る。板を作らない実行でも掛かる。
+	_load_volume_multiplier()
 	# 項目の置き場は必ず作る。板を作らない実行でも、足した項目が返す `Label` や
 	# `Button` は生きていなければならない。捨ててしまうと、呼ぶ側が持っている
 	# 参照が freed になり、書き込んだ瞬間に落ちる。
@@ -143,6 +150,7 @@ func add_confirm_button(label: String, action: Callable, arm_text := "もう一�
 func set_volume_multiplier(value: float) -> void:
 	_volume_multiplier = maxf(value, 0.0)
 	_apply_volume_multiplier()
+	_save_volume_multiplier()
 
 ## いまの音量の倍率。
 func volume_multiplier() -> float:
@@ -168,6 +176,29 @@ func _apply_volume_multiplier() -> void:
 	# 0 倍は対数では表せない。聞こえない値まで落として無音にする。
 	_volume_effect.volume_db = -80.0 if _volume_multiplier <= 0.0001 \
 		else linear_to_db(_volume_multiplier)
+
+## 覚えてある倍率を読む。まだ無ければ何もしない (既定の等倍のまま)。
+func _load_volume_multiplier() -> void:
+	if String(settings.volume_store).is_empty():
+		return
+	var file := ConfigFile.new()
+	if file.load(settings.volume_store) != OK:
+		return
+	var stored := float(file.get_value(STORE_SECTION, STORE_VOLUME_KEY, 1.0))
+	_volume_multiplier = clampf(stored, 0.0, float(settings.volume_max))
+	_apply_volume_multiplier()
+
+## 倍率をしまう。既にある中身は消さない。
+func _save_volume_multiplier() -> void:
+	if String(settings.volume_store).is_empty():
+		return
+	var file := ConfigFile.new()
+	# 読んでから書く。丸ごと作り直すと、同じ置き場に並べた他の値を消してしまう。
+	file.load(settings.volume_store)
+	file.set_value(STORE_SECTION, STORE_VOLUME_KEY, _volume_multiplier)
+	var result := file.save(settings.volume_store)
+	if result != OK:
+		push_warning("音量の倍率を書けなかった: %s (%d)" % [settings.volume_store, result])
 
 ## つまみで動かす行。`setter` は動かしている最中も呼ばれる。
 ##

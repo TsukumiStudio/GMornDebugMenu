@@ -50,6 +50,11 @@ var volume_bus := "Master"
 ## 音量の倍率の上限。1.0 より上げられるようにしてあるのは、小さすぎる音を
 ## 確かめたいことがあるため。
 var volume_max := 2.0
+## 音量の倍率をしまう置き場。空なら覚えない。
+##
+## 合わせ直した音量が起動のたびに戻ると、確かめたい状態を作るのに毎回同じ操作を
+## させることになる。遊ぶ側に触ってもらうための板なので、覚えておく。
+var volume_store := "user://gmorn_debug_menu.cfg"
 
 const SETTING_PREFIX := "gmorn_debug_menu/"
 
@@ -75,6 +80,7 @@ func load_from_environment() -> void:
 	volume_row = bool(_setting("volume_row", volume_row))
 	volume_bus = String(_setting("volume_bus", volume_bus))
 	volume_max = float(_setting("volume_max", volume_max))
+	volume_store = String(_setting("volume_store", volume_store))
 	# 何も指定が無ければ、プロジェクト全体の書体を借りる。作品が既に持って
 	# いるものを使えば、板のためだけに置き場を書かせなくて済む。
 	if font_path.is_empty():

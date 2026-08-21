@@ -157,6 +157,45 @@ func _run() -> void:
 	assert(broken._panel != null, "書体を読めないだけで板が作られなくなった")
 	ProjectSettings.set_setting("gmorn_debug_menu/font_path", "")
 
+	# 覚えた倍率は、起動し直しても戻る。合わせ直した音量が毎回戻ると、確かめたい
+	# 状態を作るのに同じ操作を繰り返させることになる。
+	var store := "user://verify_volume.cfg"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(store))
+	ProjectSettings.set_setting("gmorn_debug_menu/volume_store", store)
+	var first: CanvasLayer = script.new()
+	root.add_child(first)
+	await process_frame
+	assert(is_equal_approx(first.volume_multiplier(), 1.0),
+		"覚えていないのに等倍でない: %f" % first.volume_multiplier())
+	first.set_volume_multiplier(0.4)
+	assert(FileAccess.file_exists(store), "しまう先が作られていない")
+	var second: CanvasLayer = script.new()
+	root.add_child(second)
+	await process_frame
+	assert(is_equal_approx(second.volume_multiplier(), 0.4),
+		"覚えた倍率が戻らない: %f" % second.volume_multiplier())
+	# 同じ置き場に並べた他の値を消さない。読んでから書くこと。
+	var shared := ConfigFile.new()
+	shared.load(store)
+	shared.set_value("別の節", "残す", 7)
+	shared.save(store)
+	second.set_volume_multiplier(0.9)
+	var reread := ConfigFile.new()
+	reread.load(store)
+	assert(int(reread.get_value("別の節", "残す", 0)) == 7, "同じ置き場の他の値を消した")
+	# 置き場を空にすれば覚えない。
+	ProjectSettings.set_setting("gmorn_debug_menu/volume_store", "")
+	var forgetful: CanvasLayer = script.new()
+	root.add_child(forgetful)
+	await process_frame
+	assert(is_equal_approx(forgetful.volume_multiplier(), 1.0),
+		"覚えない設定なのに読んだ: %f" % forgetful.volume_multiplier())
+	forgetful.set_volume_multiplier(0.2)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(store))
+	first.set_volume_multiplier(1.0)
+	second.set_volume_multiplier(1.0)
+	forgetful.set_volume_multiplier(1.0)
+
 	# 音量の倍率。板を作らない側でも通る。
 	assert(is_equal_approx(quiet.volume_multiplier(), 1.0), "はじめから等倍でない")
 	quiet.set_volume_multiplier(0.5)
