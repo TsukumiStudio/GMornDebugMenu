@@ -40,6 +40,16 @@ var panel_border_color := Color(1.0, 0.3, 0.72, 1.0)
 var font_path := ""
 ## 板の文字の大きさ。0なら既定のまま。
 var font_size := 0
+## 音量の行を板へ出すか。
+##
+## どの作品でも要るので、この部品が持つ数少ない中身の1つ。撮影のときに音を
+## 絞る、うるさい効果音を聞き直す、といった用途がどこでも同じ形で出る。
+var volume_row := true
+## 音量を掛ける母線の名前。
+var volume_bus := "Master"
+## 音量の倍率の上限。1.0 より上げられるようにしてあるのは、小さすぎる音を
+## 確かめたいことがあるため。
+var volume_max := 2.0
 
 const SETTING_PREFIX := "gmorn_debug_menu/"
 
@@ -62,6 +72,9 @@ func load_from_environment() -> void:
 	panel_border_color = _color("panel_border_color", panel_border_color)
 	font_path = String(_setting("font_path", font_path))
 	font_size = int(_setting("font_size", font_size))
+	volume_row = bool(_setting("volume_row", volume_row))
+	volume_bus = String(_setting("volume_bus", volume_bus))
+	volume_max = float(_setting("volume_max", volume_max))
 	# 何も指定が無ければ、プロジェクト全体の書体を借りる。作品が既に持って
 	# いるものを使えば、板のためだけに置き場を書かせなくて済む。
 	if font_path.is_empty():

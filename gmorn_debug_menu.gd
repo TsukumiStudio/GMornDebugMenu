@@ -48,6 +48,13 @@ var _panel: PanelContainer
 var _items: VBoxContainer
 var _status_label: Label
 var _theme: Theme
+## 音量の倍率。1.0 が素のまま。
+var _volume_multiplier := 1.0
+## 倍率を掛けるために母線へ積む増幅。掛け始めるまでは作らない。
+var _volume_effect: AudioEffectAmplify = null
+## 部品が持つ行の置き場。`clear_items()` で消える `_items` とは分けてある。
+## 一緒にしていると、作品が場面を切り替えるたびに音量の行まで消える。
+var _builtins: VBoxContainer
 ## 二度押しの世代。押し直しの待ち時間が重なっても、古い待ちが新しい構えを
 ## 解いてしまわないようにするために数える。
 var _confirm_generation := 0
@@ -129,6 +136,72 @@ func add_confirm_button(label: String, action: Callable, arm_text := "もう一�
 		action.call())
 	_add_item(button)
 	return button
+
+## 音量の倍率を変える。0.0 で無音、1.0 で素のまま。
+##
+## 板を作らない実行でも通る。呼ぶ側に「板があるか」を書かせないためである。
+func set_volume_multiplier(value: float) -> void:
+	_volume_multiplier = maxf(value, 0.0)
+	_apply_volume_multiplier()
+
+## いまの音量の倍率。
+func volume_multiplier() -> float:
+	return _volume_multiplier
+
+## 倍率は、母線の音量そのものではなく **増幅の効果** で掛ける。
+##
+## 母線の音量を書き換える形にすると、作品が自分で音量を変えた瞬間に上書きされ、
+## 掛けたはずの倍率が消える。効果は音量とは別に積まれるので、作品がいくら音量を
+## 触っても、その後ろで必ず掛かる。**強制的に乗算する**とはこの形である。
+##
+## 等倍のあいだは何も積まない。触っていない作品の音の道を変えないため。
+func _apply_volume_multiplier() -> void:
+	var bus := AudioServer.get_bus_index(settings.volume_bus)
+	if bus < 0:
+		push_warning("音量を掛ける母線が無い: %s" % settings.volume_bus)
+		return
+	if _volume_effect == null:
+		if is_equal_approx(_volume_multiplier, 1.0):
+			return
+		_volume_effect = AudioEffectAmplify.new()
+		AudioServer.add_bus_effect(bus, _volume_effect)
+	# 0 倍は対数では表せない。聞こえない値まで落として無音にする。
+	_volume_effect.volume_db = -80.0 if _volume_multiplier <= 0.0001 \
+		else linear_to_db(_volume_multiplier)
+
+## つまみで動かす行。`setter` は動かしている最中も呼ばれる。
+##
+## 数を入れて「決定」を押す行と分けてある。音量のように、動かしながら結果を
+## 確かめたいものは、決定を待たせると合わせられない。
+func add_slider(label: String, getter: Callable, setter: Callable,
+		minimum := 0.0, maximum := 1.0, step := 0.05) -> HSlider:
+	var slider := _build_slider_row(label, float(getter.call()), setter, minimum, maximum, step)
+	_add_item(slider.get_parent())
+	return slider
+
+func _build_slider_row(label: String, value: float, setter: Callable,
+		minimum: float, maximum: float, step: float) -> HSlider:
+	var row := HBoxContainer.new()
+	var name_label := Label.new()
+	name_label.text = label
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name_label)
+	var slider := HSlider.new()
+	slider.min_value = minimum
+	slider.max_value = maximum
+	slider.step = step
+	slider.value = value
+	slider.custom_minimum_size = Vector2(150.0, 0.0)
+	row.add_child(slider)
+	var value_label := Label.new()
+	value_label.text = "×%.2f" % value
+	value_label.custom_minimum_size = Vector2(56.0, 0.0)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(value_label)
+	slider.value_changed.connect(func(next_value: float) -> void:
+		value_label.text = "×%.2f" % next_value
+		setter.call(next_value))
+	return slider
 
 ## 数を入れて決める行。`getter` はいまの値、`setter` は決めたときの受け口。
 func add_number(label: String, getter: Callable, setter: Callable,
@@ -340,8 +413,18 @@ func _build_panel() -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	column.add_child(scroll)
 
+	# 部品が持つ行は、作品が足す行より上に、別の置き場で持つ。`clear_items()`
+	# で消える側へ混ぜると、作品が場面を切り替えるたびに音量の行まで消える。
+	var stack := VBoxContainer.new()
+	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(stack)
+	_builtins = VBoxContainer.new()
+	_builtins.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stack.add_child(_builtins)
+	if settings.volume_row:
+		_build_volume_row()
 	_items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_items)
+	stack.add_child(_items)
 
 	column.add_child(HSeparator.new())
 
@@ -356,6 +439,17 @@ func _build_panel() -> void:
 ## 既定の書体は日本語の字を持たない。卓上では実行環境の書体が肩代わりするため
 ## 気付けないが、肩代わりの無い環境（Webへ書き出したもの）では日本語がすべて
 ## 豆腐になる。実際に配ったWeb版で、板の項目名が全部四角になっていた。
+## 音量の行。部品が持つ数少ない中身の1つ。
+func _build_volume_row() -> void:
+	var slider := _build_slider_row("音量 (%s)" % settings.volume_bus,
+		_volume_multiplier,
+		func(value: float) -> void:
+			set_volume_multiplier(value)
+			set_status("音量を ×%.2f にしました" % value),
+		0.0, settings.volume_max, 0.05)
+	_builtins.add_child(slider.get_parent())
+	_builtins.add_child(HSeparator.new())
+
 func _ui_theme() -> Theme:
 	if _theme != null:
 		return _theme

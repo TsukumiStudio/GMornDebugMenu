@@ -8,6 +8,15 @@ extends SceneTree
 
 const MENU_PATH := "res://addons/gmorn_debug_menu/gmorn_debug_menu.gd"
 
+## `node` が `ancestor` の下にあるか。
+static func _is_under(node: Node, ancestor: Node) -> bool:
+	var walk := node
+	while walk != null:
+		if walk == ancestor:
+			return true
+		walk = walk.get_parent()
+	return false
+
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -118,8 +127,11 @@ func _run() -> void:
 		if child is ScrollContainer:
 			scrolls.append(child)
 	assert(scrolls.size() == 1, "流れる場所が %d 個ある" % scrolls.size())
-	assert(menu._items.get_parent() == scrolls[0], "項目が流れる側に入っていない")
-	assert(menu._status_label.get_parent() != scrolls[0], "状況の一行が流れる側に入っている")
+	# 直の親ではなく、流れる側の下にあるかで見る。部品が持つ行と作品が足す行を
+	# 分ける置き場が間に挟まっても、確かめたいこと (項目は流れる) は変わらない。
+	assert(_is_under(menu._items, scrolls[0]), "項目が流れる側に入っていない")
+	assert(not _is_under(menu._status_label, scrolls[0]), "状況の一行が流れる側に入っている")
+	assert(_is_under(menu._builtins, scrolls[0]), "部品が持つ行が流れる側に入っていない")
 
 	# 書体を指定していなければテーマを作らない。既定のままにする。
 	assert(menu._ui_theme() == null, "指定していないのにテーマを作った")
@@ -144,6 +156,62 @@ func _run() -> void:
 	await process_frame
 	assert(broken._panel != null, "書体を読めないだけで板が作られなくなった")
 	ProjectSettings.set_setting("gmorn_debug_menu/font_path", "")
+
+	# 音量の倍率。板を作らない側でも通る。
+	assert(is_equal_approx(quiet.volume_multiplier(), 1.0), "はじめから等倍でない")
+	quiet.set_volume_multiplier(0.5)
+	assert(is_equal_approx(quiet.volume_multiplier(), 0.5), "倍率が入らない")
+
+	# 等倍のあいだは母線へ何も積まない。触っていない作品の音の道を変えない。
+	var bus := AudioServer.get_bus_index("Master")
+	var before: int = AudioServer.get_bus_effect_count(bus)
+	var untouched: CanvasLayer = script.new()
+	root.add_child(untouched)
+	await process_frame
+	assert(AudioServer.get_bus_effect_count(bus) == before,
+		"等倍なのに効果を積んでいる: %d → %d" % [before, AudioServer.get_bus_effect_count(bus)])
+
+	# 倍率を変えたところで初めて積む。母線の音量そのものは触らない。
+	var volume_before := AudioServer.get_bus_volume_db(bus)
+	untouched.set_volume_multiplier(0.25)
+	assert(AudioServer.get_bus_effect_count(bus) == before + 1,
+		"倍率を変えても効果を積んでいない")
+	assert(is_equal_approx(AudioServer.get_bus_volume_db(bus), volume_before),
+		"母線の音量そのものを書き換えている")
+	var amp := AudioServer.get_bus_effect(bus, before) as AudioEffectAmplify
+	assert(amp != null, "積んだものが増幅でない")
+	assert(is_equal_approx(amp.volume_db, linear_to_db(0.25)),
+		"掛かった量が %f" % amp.volume_db)
+	# 作品が母線の音量を変えても、倍率は掛かったまま残る。**強制的に乗算する**
+	# とはこの形である。母線の音量を書き換える作りだと、ここで倍率が消える。
+	AudioServer.set_bus_volume_db(bus, volume_before - 6.0)
+	assert(is_equal_approx(amp.volume_db, linear_to_db(0.25)),
+		"作品が音量を変えたら倍率が消えた")
+	AudioServer.set_bus_volume_db(bus, volume_before)
+	# 0 倍は無音まで落とす。対数では 0 を表せない。
+	untouched.set_volume_multiplier(0.0)
+	assert(amp.volume_db <= -80.0, "0倍で無音になっていない: %f" % amp.volume_db)
+	untouched.set_volume_multiplier(1.0)
+
+	# 音量の行は、作品が場面を切り替えても消えない。`clear_items()` で消える
+	# 側へ混ぜていると、場面が変わるたびに音量を合わせ直すことになる。
+	assert(menu._builtins != null and menu._builtins.get_child_count() > 0,
+		"音量の行が置かれていない")
+	var builtin_rows: int = menu._builtins.get_child_count()
+	menu.add_button("あとで消す", func() -> void: pass)
+	menu.clear_items()
+	assert(menu._builtins.get_child_count() == builtin_rows,
+		"clear_items() で音量の行まで消えた")
+
+	# つまみの行は、動かしている最中に渡る。決定を待たせると音を合わせられない。
+	var slid: Array = []
+	var slider: HSlider = menu.add_slider("つまみ",
+		func() -> float: return 0.5,
+		func(value: float) -> void: slid.append(value), 0.0, 1.0, 0.1)
+	assert(is_equal_approx(slider.value, 0.5), "はじめの値が %f" % slider.value)
+	slider.value = 0.8
+	assert(slid.size() == 1 and is_equal_approx(slid[0], 0.8),
+		"動かしても渡らない: %s" % str(slid))
 
 	# 釦は隠せる。撮影や配信のときに使う。
 	menu.set_button_visible(false)
