@@ -17,11 +17,21 @@ static func _is_under(node: Node, ancestor: Node) -> bool:
 		walk = walk.get_parent()
 	return false
 
+## 倍率をしまう置き場を消す。走をまたいで残ると、次の走が前の値を読む。
+static func _forget_stored_volume() -> void:
+	for path: String in ["user://gmorn_debug_menu.cfg", "user://verify_volume.cfg"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
 func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
 	var script: GDScript = load(MENU_PATH)
+	# **前の走で書いたものを消してから始める。**倍率をしまう既定の置き場
+	# （`user://gmorn_debug_menu.cfg`）は走をまたいで残るので、この検証が
+	# 途中で書いた 0.5 を次の走が読み、「はじめから等倍でない」で落ちていた。
+	# 一時の置き場に作るのはプロジェクトだけで、`user://` は作品名から決まる。
+	_forget_stored_volume()
 
 	# 板を作らない側。項目を足しても落ちない。
 	var quiet: CanvasLayer = script.new()
@@ -252,9 +262,49 @@ func _run() -> void:
 	assert(slid.size() == 1 and is_equal_approx(slid[0], 0.8),
 		"動かしても渡らない: %s" % str(slid))
 
+	# **どんな行を足しても、板は画面の中に収まる。**
+	#
+	# 行を足すのは作品側で、板を作った後に足される。指定した大きさより広い行が
+	# 1つでも来ると、`PanelContainer` はその最小の幅まで広がる。以前は広がった
+	# ぶんがそのまま画面の外へ出ていた（取り込んだ作品で、幅 491px・右端が
+	# 1979px と画面より 59px 外に出ていた）。
+	ProjectSettings.set_setting("gmorn_debug_menu/font_size", 0)
+	# **画面の広さを決めてから測る。**窓の無い実行の既定は 64×64 で、そこでは
+	# 何を置いてもはみ出す。遊ぶ人が見る広さに近い値へ広げて確かめる。
+	root.size = Vector2i(1280, 720)
+	await process_frame
+	var view: Vector2 = root.get_visible_rect().size
+	assert(view.x >= 1000.0, "画面の広さを決められていない: %s" % view)
+	for corner: String in ["top_right", "top_left", "bottom_right", "bottom_left"]:
+		ProjectSettings.set_setting("gmorn_debug_menu/button_corner", corner)
+		var cornered: CanvasLayer = script.new()
+		root.add_child(cornered)
+		await process_frame
+		# 板の指定より明らかに広い行を足す。
+		cornered.add_label("と".repeat(400))
+		cornered.add_button("も" + "の".repeat(200), func() -> void: pass)
+		cornered.open()
+		await process_frame
+		var panel: PanelContainer = cornered._panel
+		var rect := Rect2(panel.position, panel.size)
+		assert(rect.position.x >= -0.5 and rect.position.y >= -0.5,
+			"%s で板が画面の左上より外にある: %s" % [corner, rect])
+		assert(rect.end.x <= view.x + 0.5 and rect.end.y <= view.y + 0.5,
+			"%s で板が画面の外へ出ている: 右端 %.0f / 下端 %.0f（画面は %s）" % [
+				corner, rect.end.x, rect.end.y, view])
+		# 入り切らないぶんは流して見せる。切り落とすと触れない行が出る。
+		assert(cornered._scroll.horizontal_scroll_mode != ScrollContainer.SCROLL_MODE_DISABLED,
+			"%s で横に流せない。入り切らない行へ届かなくなる" % corner)
+		cornered.queue_free()
+		await process_frame
+	ProjectSettings.set_setting("gmorn_debug_menu/button_corner", "top_right")
+
 	# 釦は隠せる。撮影や配信のときに使う。
 	menu.set_button_visible(false)
 	assert(not menu._button.visible, "隠れない")
+
+	# 走の間に置き土産を残さない。次の走が読んでしまう。
+	_forget_stored_volume()
 
 	print("知らせ=%s 数=%f 選び=%d" % [str(toggles), stored[0], chosen[0]])
 	print("GMORN DEBUG MENU VERIFY: PASS")
