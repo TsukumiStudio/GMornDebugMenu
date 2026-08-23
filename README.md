@@ -117,7 +117,7 @@ if menu != null:
 | 釦の大きさ | `gmorn_debug_menu/button_width` / `button_height` | — | `40` / `40` |
 | 縁からの間 | `gmorn_debug_menu/button_margin_x` / `button_margin_y` | — | `12` / `12` |
 | 釦の濃さ | `gmorn_debug_menu/button_alpha` | — | `0.82` |
-| 板の大きさ | `gmorn_debug_menu/panel_width` / `panel_height` | — | `420` / `520` |
+| 板の大きさ（目安） | `gmorn_debug_menu/panel_width` / `panel_height` | — | `420` / `520` |
 | 板の色 | `gmorn_debug_menu/panel_color` / `panel_border_color` | — | 濃紫 / 桃 |
 | 書体 | `gmorn_debug_menu/font_path` | — | `gui/theme/custom_font` があればそれ |
 | 文字の大きさ | `gmorn_debug_menu/font_size` | — | `0`（既定のまま） |
@@ -125,6 +125,16 @@ if menu != null:
 | 音量を掛ける母線 | `gmorn_debug_menu/volume_bus` | — | `Master` |
 | 倍率の上限 | `gmorn_debug_menu/volume_max` | — | `2.0` |
 | 倍率をしまう置き場 | `gmorn_debug_menu/volume_store` | — | `user://gmorn_debug_menu.cfg`（空で覚えない） |
+
+**板の大きさは目安である。板は必ず画面の中に収まる。** 行を足すのは作品側で、板を作った後に足される。指定した幅より広い行が1つでも来ると `PanelContainer` はその最小の幅まで広がるので、指定をそのまま守ると**はみ出したぶんが画面の外へ出る**（実際に、取り込んだ作品で右端が画面より 59px 外に出ていた）。
+
+開くたびに次の順で置き直す。
+
+1. 中身が指定より広ければ、入るところまで広げる
+2. 画面に入らなければ、そこで止めて中を流す（横も縦も）
+3. 収めたうえで、画面の外へ出ない場所へ置く
+
+画面の大きさが変わったときも置き直すので、窓を縮めても全画面へ切り替えても板は画面の中に残る。
 
 **日本語などを出すなら書体を指定する。** Godotの既定の書体はASCIIしか持たない。卓上では実行環境の書体が肩代わりするため気付けないが、肩代わりの無い環境（Webへ書き出したもの）では文字がすべて豆腐になる。実際に配ったWeb版で、板の項目名が全部四角になっていた。
 

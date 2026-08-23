@@ -26,6 +26,9 @@ const BEAT_SCALE_GROUP := &"gmorn_beat_scaler"
 
 const SETTINGS := preload("gmorn_debug_menu_settings.gd")
 
+## 釦と板の間（画素）。
+const PANEL_GAP := 8.0
+
 ## しまう先の節と鍵。他の値を並べて置けるように節を切ってある。
 const STORE_SECTION := "gmorn_debug_menu"
 const STORE_VOLUME_KEY := "volume_multiplier"
@@ -49,6 +52,9 @@ var settings: RefCounted
 
 var _button: Button
 var _panel: PanelContainer
+## 項目を流す枠と、その中の縦並び。板を画面へ収めるときに中身の幅を測る。
+var _scroll: ScrollContainer
+var _stack: VBoxContainer
 var _items: VBoxContainer
 var _status_label: Label
 var _theme: Theme
@@ -352,6 +358,9 @@ func _set_open(value: bool) -> void:
 	_panel.visible = value
 	if value:
 		refresh_numbers()
+		# **開くたびに置き直す。**行を足すのは作品側で、板を作った後に足される。
+		# 作ったときの寸法のままだと、後から来た広い行のぶんが画面の外へ出る。
+		_layout_panel()
 	panel_toggled.emit(value)
 
 func _disarm_later(button: Button, label: String, armed: Array,
@@ -416,16 +425,9 @@ func _button_preset() -> int:
 func _build_panel() -> void:
 	_panel = PanelContainer.new()
 	_panel.visible = false
-	_panel.set_anchors_preset(_button_preset())
-	# 板は釦と同じ側へ寄せる。釦の反対側に出ると、押してから目を移す先が遠い。
-	var to_left: bool = settings.button_corner in ["top_left", "bottom_left"]
-	_panel.offset_left = settings.button_margin.x if to_left \
-		else -settings.panel_size.x - settings.button_margin.x
-	_panel.offset_right = _panel.offset_left + settings.panel_size.x
-	_panel.offset_top = settings.button_margin.y + settings.button_size.y + 8.0 \
-		if settings.button_corner in ["top_left", "top_right"] \
-		else -settings.panel_size.y - settings.button_size.y - settings.button_margin.y - 8.0
-	_panel.offset_bottom = _panel.offset_top + settings.panel_size.y
+	# 置き場は左上からの座標で決める（`_layout_panel()`）。隅ごとの寄せ方も
+	# あちらが見るので、ここでは寄せ方を持たない。
+	_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_panel.add_theme_stylebox_override("panel", _panel_style())
 	# 書体は板そのものへ付ける。テーマは子へ伝わるので、行を足すたびに
 	# 指定し直さなくてよい。
@@ -441,14 +443,20 @@ func _build_panel() -> void:
 	# 画面の外へ出て見えなくなっていた。
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# **横も流せるようにしておく。**流せないと、行の最小の幅がそのまま枠の
+	# 最小の幅になり、`PanelContainer` が指定した大きさを無視して広がる。
+	# 広がる先は画面の外である（実測で幅 491px、右端が 1979px と画面より 59px 外）。
+	# `AUTO` なので、入り切るあいだは横の帯は出ない。
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	column.add_child(scroll)
+	_scroll = scroll
 
 	# 部品が持つ行は、作品が足す行より上に、別の置き場で持つ。`clear_items()`
 	# で消える側へ混ぜると、作品が場面を切り替えるたびに音量の行まで消える。
 	var stack := VBoxContainer.new()
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(stack)
+	_stack = stack
 	_builtins = VBoxContainer.new()
 	_builtins.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	stack.add_child(_builtins)
@@ -464,6 +472,71 @@ func _build_panel() -> void:
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_child(_status_label)
+
+	_layout_panel()
+	# 画面の大きさが変わったら置き直す。窓を掴んで縮めたときも、全画面へ
+	# 切り替えたときも、板は画面の中に残る。
+	var viewport := get_viewport()
+	if viewport != null and not viewport.size_changed.is_connected(_layout_panel):
+		viewport.size_changed.connect(_layout_panel)
+
+## 板を画面の中へ収める。
+##
+## **どれだけ広がるかは、この部品からは決められない。**行を足すのは作品側で、
+## 板を作った後に足される。指定した大きさ（`panel_size`）より広い行が1つでも
+## 来ると、`PanelContainer` はその最小の幅まで広がり、はみ出したぶんがそのまま
+## 画面の外へ出ていた（2026-08-23 の監修「デバッグメニューを開いたときに画面が
+## 画面外に行ってしまっている」）。
+##
+## 指定はあくまで目安として扱う。
+##
+## - 中身が指定より広ければ、入るところまで広げる
+## - 画面に入らなければ、そこで止めて中を流す（横も縦も）
+## - 収めたうえで、画面の外へ出ない場所へ置く
+func _layout_panel() -> void:
+	if not is_instance_valid(_panel):
+		return
+	var viewport := get_viewport()
+	if viewport == null:
+		return
+	var view := viewport.get_visible_rect().size
+	var margin: Vector2 = settings.button_margin
+	# 釦と重ならない高さ。板は釦の下（上の隅なら）か上（下の隅なら）へ出す。
+	var reserved: float = settings.button_size.y + PANEL_GAP
+	var available := Vector2(
+		maxf(view.x - margin.x * 2.0, 1.0),
+		maxf(view.y - margin.y * 2.0 - reserved, 1.0))
+	# 中身が要る幅。板の内側の余白と、縦の帯のぶんを足す。
+	var wanted: float = settings.panel_size.x
+	if is_instance_valid(_stack):
+		wanted = maxf(wanted, _stack.get_combined_minimum_size().x + _panel_inner_width())
+	var size := Vector2(minf(wanted, available.x), minf(float(settings.panel_size.y), available.y))
+	# **これ以上は縮まない**という大きさがある（余白と一行ぶん）。画面が
+	# それより狭いときは縮められないので、せめて左上より外へは出さない。
+	size = size.max(_panel.get_combined_minimum_size())
+	var to_left: bool = settings.button_corner in ["top_left", "bottom_left"]
+	var to_top: bool = settings.button_corner in ["top_left", "top_right"]
+	var position := Vector2(
+		margin.x if to_left else view.x - margin.x - size.x,
+		margin.y + reserved if to_top else view.y - margin.y - reserved - size.y)
+	# 端で丸める。指定した余白が画面より大きいときでも、外へは出さない。
+	position.x = clampf(position.x, 0.0, maxf(view.x - size.x, 0.0))
+	position.y = clampf(position.y, 0.0, maxf(view.y - size.y, 0.0))
+	_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_panel.offset_left = position.x
+	_panel.offset_top = position.y
+	_panel.offset_right = position.x + size.x
+	_panel.offset_bottom = position.y + size.y
+
+## 板の内側で、中身に使えない幅（左右の余白と縦の帯）。
+func _panel_inner_width() -> float:
+	var style := _panel.get_theme_stylebox("panel") as StyleBoxFlat
+	var width := 0.0
+	if style != null:
+		width += style.content_margin_left + style.content_margin_right
+	if is_instance_valid(_scroll):
+		width += _scroll.get_v_scroll_bar().get_combined_minimum_size().x
+	return width
 
 ## 板で使うテーマを作る。書体の指定が無ければ `null` を返し、既定のままにする。
 ##
