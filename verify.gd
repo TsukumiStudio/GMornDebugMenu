@@ -275,6 +275,30 @@ func _run() -> void:
 	await process_frame
 	var view: Vector2 = root.get_visible_rect().size
 	assert(view.x >= 1000.0, "画面の広さを決められていない: %s" % view)
+
+	# **広げる側**。指定より中身が広く、それでも画面には入る場合は、中身に
+	# 合わせて広げる。指定を 100px まで絞って、必ずこの枝に落とす。
+	ProjectSettings.set_setting("gmorn_debug_menu/panel_width", 100.0)
+	var widened: CanvasLayer = script.new()
+	root.add_child(widened)
+	await process_frame
+	widened.add_button("そこそこ長い行", func() -> void: pass)
+	widened.open()
+	await process_frame
+	var widened_content: float = widened._stack.get_combined_minimum_size().x \
+		+ widened._panel_inner_width()
+	assert(widened_content > 100.0 and widened_content < view.x - 24.0,
+		"検査の前提が崩れている。中身の幅が %.0f（100 と %.0f の間に無い）" % [
+			widened_content, view.x - 24.0])
+	assert(absf(widened._panel.size.x - widened_content) <= 1.0,
+		"中身に合わせて広がっていない: 板 %.0f / 中身 %.0f" % [
+			widened._panel.size.x, widened_content])
+	widened.queue_free()
+	await process_frame
+	ProjectSettings.set_setting("gmorn_debug_menu/panel_width", 420.0)
+
+	# **止める側**。画面に入らないほど中身が広ければ、そこで止めて中を流す。
+	# 4隅すべてで見る。寄せ方ごとに座標の出し方が違う。
 	for corner: String in ["top_right", "top_left", "bottom_right", "bottom_left"]:
 		ProjectSettings.set_setting("gmorn_debug_menu/button_corner", corner)
 		var cornered: CanvasLayer = script.new()
@@ -285,6 +309,14 @@ func _run() -> void:
 		cornered.add_button("も" + "の".repeat(200), func() -> void: pass)
 		cornered.open()
 		await process_frame
+		# **前提を先に確かめる。**足した行が実は狭ければ、板は最初から画面に
+		# 収まっていて、直した分岐を1つも通らないまま assert が素通りする
+		# （既定の書体は日本語の字を持たないので、字幅は環境で変わる）。
+		var content: float = cornered._stack.get_combined_minimum_size().x \
+			+ cornered._panel_inner_width()
+		assert(content > view.x - 24.0,
+			"検査の前提が崩れている。足した行の幅が %.0f で、画面（%.0f）に収まってしまう" % [
+				content, view.x - 24.0])
 		var panel: PanelContainer = cornered._panel
 		var rect := Rect2(panel.position, panel.size)
 		assert(rect.position.x >= -0.5 and rect.position.y >= -0.5,
@@ -298,6 +330,28 @@ func _run() -> void:
 		cornered.queue_free()
 		await process_frame
 	ProjectSettings.set_setting("gmorn_debug_menu/button_corner", "top_right")
+
+	# **開いたまま画面を縮めても収まる。**窓を掴んで縮める、全画面から戻す、
+	# といった場面で置き直せているか。`size_changed` の繋ぎが外れると、
+	# 開きっぱなしの板だけが前の広さのまま取り残される。
+	var resized: CanvasLayer = script.new()
+	root.add_child(resized)
+	await process_frame
+	resized.add_label("と".repeat(120))
+	resized.open()
+	await process_frame
+	root.size = Vector2i(900, 500)
+	await process_frame
+	var small_view: Vector2 = root.get_visible_rect().size
+	var small_rect := Rect2(resized._panel.position, resized._panel.size)
+	assert(small_rect.position.x >= -0.5 and small_rect.position.y >= -0.5,
+		"縮めた画面で板が左上より外にある: %s" % small_rect)
+	assert(small_rect.end.x <= small_view.x + 0.5 and small_rect.end.y <= small_view.y + 0.5,
+		"開いたまま画面を縮めたら板がはみ出した: 右端 %.0f / 下端 %.0f（画面は %s）" % [
+			small_rect.end.x, small_rect.end.y, small_view])
+	resized.queue_free()
+	root.size = Vector2i(1280, 720)
+	await process_frame
 
 	# 釦は隠せる。撮影や配信のときに使う。
 	menu.set_button_visible(false)
