@@ -69,6 +69,26 @@ var _builtins: VBoxContainer
 ## 解いてしまわないようにするために数える。
 var _confirm_generation := 0
 
+# --- エディタのデバッガパネルとの橋渡し --------------------------------------
+#
+# `EditorDebuggerPlugin` 側 (`gmorn_debug_menu_debugger_plugin.gd` /
+# `gmorn_debug_menu_debugger_tab.gd`) とメッセージでやり取りする。仕様は
+# README.md の「リモート操作の仕組み」を参照。
+
+## 合言葉。`EngineDebugger.register_message_capture()` と、エディタ側の
+## `_has_capture()` の両方がこの文字列で揃っている必要がある。
+const BRIDGE_NAME := "gmorn_debug_menu"
+## 監視値を送る間隔（秒）。
+const BRIDGE_POLL_SECONDS := 0.3
+
+## 足した項目の置き場。`id (int) -> {kind, label, invoke?, set_value?,
+## value_getter?, options?, last_value?}`。`EngineDebugger.is_active()` が
+## 偽のときも記録だけは続ける。検証がこの中身を直に確かめられるようにするため。
+var _bridge_items: Dictionary = {}
+var _bridge_next_id := 0
+## 本当にエディタへ繋がっているか。繋がっていないときは記録だけして送らない。
+var _bridge_active := false
+
 func _ready() -> void:
 	settings = SETTINGS.new()
 	settings.load_from_environment()
@@ -80,6 +100,9 @@ func _ready() -> void:
 	# 参照が freed になり、書き込んだ瞬間に落ちる。
 	_items = VBoxContainer.new()
 	_items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# デバッガへの橋渡しは板の有無と関係なく効かせる。画面の無い専用サーバでも
+	# リモートから項目を操りたいことがあるため。
+	_bridge_setup()
 	# 画面の無い実行では板を作らない。作っても誰も見ないうえ、検証のたびに
 	# 木へ余計なノードが増える。切ってあるときも同じ。
 	if not settings.enabled \
@@ -113,6 +136,8 @@ func toggle() -> void:
 func set_status(message: String) -> void:
 	if is_instance_valid(_status_label):
 		_status_label.text = message
+	if _bridge_active:
+		EngineDebugger.send_message("%s:status" % BRIDGE_NAME, [message])
 
 # --- 項目を足す -------------------------------------------------------------
 
@@ -123,6 +148,7 @@ func add_button(label: String, action: Callable) -> Button:
 	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(func() -> void: action.call())
 	_add_item(button)
+	_bridge_register("button", label, {"invoke": func() -> void: button.pressed.emit()})
 	return button
 
 ## 押し間違えたら困る釦。1度目で構え、決められた時間内にもう1度押すと通す。
@@ -148,6 +174,7 @@ func add_confirm_button(label: String, action: Callable, arm_text := "もう一�
 		button.text = label
 		action.call())
 	_add_item(button)
+	_bridge_register("button", label, {"invoke": func() -> void: button.pressed.emit()})
 	return button
 
 ## 音量の倍率を変える。0.0 で無音、1.0 で素のまま。
@@ -214,6 +241,10 @@ func add_slider(label: String, getter: Callable, setter: Callable,
 		minimum := 0.0, maximum := 1.0, step := 0.05) -> HSlider:
 	var slider := _build_slider_row(label, float(getter.call()), setter, minimum, maximum, step)
 	_add_item(slider.get_parent())
+	_bridge_register("slider", label, {
+		"value_getter": func() -> float: return slider.value,
+		"set_value": func(value: float) -> void: slider.value = value,
+	})
 	return slider
 
 func _build_slider_row(label: String, value: float, setter: Callable,
@@ -266,6 +297,13 @@ func add_number(label: String, getter: Callable, setter: Callable,
 	# 書き込んで落ちる。行と一緒に消えるところへ置けば、その形にならない。
 	spin.set_meta(NUMBER_GETTER_META, getter)
 	_add_item(row)
+	_bridge_register("number", label, {
+		"value_getter": getter,
+		"set_value": func(value: float) -> void:
+			setter.call(value)
+			spin.set_value_no_signal(value)
+			set_status("%s を %s にしました" % [label, value]),
+	})
 	return spin
 
 ## 数の行を、いまの値へ戻す。
@@ -302,6 +340,13 @@ func add_option(label: String, options: PackedStringArray, on_selected: Callable
 	option.item_selected.connect(func(index: int) -> void: on_selected.call(index))
 	row.add_child(option)
 	_add_item(row)
+	_bridge_register("option", label, {
+		"value_getter": func() -> int: return option.selected,
+		"options": options,
+		"set_value": func(value: int) -> void:
+			option.selected = value
+			on_selected.call(value),
+	})
 	return option
 
 ## 入り切りの行。
@@ -312,6 +357,12 @@ func add_toggle(label: String, on_toggled: Callable, pressed := false) -> CheckB
 	check.focus_mode = Control.FOCUS_NONE
 	check.toggled.connect(func(value: bool) -> void: on_toggled.call(value))
 	_add_item(check)
+	_bridge_register("toggle", label, {
+		"value_getter": func() -> bool: return check.button_pressed,
+		# `button_pressed` へ直に書くと `toggled` が流れ、上の繋ぎ経由で
+		# `on_toggled` まで届く。押した場合と同じ道を通す。
+		"set_value": func(value: bool) -> void: check.button_pressed = value,
+	})
 	return check
 
 ## 見るだけの行。返る `Label` の `text` を書き換えて使う。
@@ -319,6 +370,7 @@ func add_label(text := "") -> Label:
 	var label := Label.new()
 	label.text = text
 	_add_item(label)
+	_bridge_register("label", text, {"value_getter": func() -> String: return label.text})
 	return label
 
 ## 区切り線。項目が増えてきたときに固まりを分ける。
@@ -340,6 +392,10 @@ func clear_items() -> void:
 	for child in _items.get_children():
 		_items.remove_child(child)
 		child.queue_free()
+	_bridge_items.clear()
+	_bridge_next_id = 0
+	if _bridge_active:
+		EngineDebugger.send_message("%s:clear" % BRIDGE_NAME, [])
 
 # --- 中身 -------------------------------------------------------------------
 
@@ -351,6 +407,99 @@ func _add_item(control: Control) -> void:
 	# 置き場ごと隠してあるので、出ることはない。
 	_items.add_child(control)
 	_disable_beat_scale(control)
+
+# --- エディタのデバッガパネルとの橋渡し --------------------------------------
+
+## `EngineDebugger` が繋がっているとき（エディタから実行したとき）だけ、
+## 合言葉を登録して監視値の巡回を始める。繋がっていない実行（配布物や
+## この部品単体の検証）では何もしない。
+func _bridge_setup() -> void:
+	if not EngineDebugger.is_active():
+		return
+	_bridge_active = true
+	EngineDebugger.register_message_capture(BRIDGE_NAME, _bridge_capture)
+	var timer := Timer.new()
+	timer.wait_time = BRIDGE_POLL_SECONDS
+	timer.autostart = true
+	timer.timeout.connect(_bridge_poll_values)
+	add_child(timer)
+
+## 項目を1つ記録する。`add_*` の末尾から呼ぶ。
+##
+## `opts` に積めるもの: `invoke` (引数無しの `Callable`、釦の実行),
+## `set_value` (値を1つ受ける `Callable`、つまみ・数・選び・入り切りの変更),
+## `value_getter` (いまの値を返す `Callable`、同期と巡回で使う),
+## `options` (`PackedStringArray`、選ぶ行の選択肢)。
+func _bridge_register(kind: String, label: String, opts: Dictionary) -> void:
+	var entry := opts.duplicate()
+	entry["kind"] = kind
+	entry["label"] = label
+	_bridge_items[_bridge_next_id] = entry
+	_bridge_next_id += 1
+	_bridge_send_sync()
+
+## いまの項目一覧を、エディタへ送れる形に描き出す。
+func _bridge_snapshot() -> Array:
+	var items: Array = []
+	for id: int in _bridge_items.keys():
+		var entry: Dictionary = _bridge_items[id]
+		var item := {"id": id, "kind": entry.kind, "label": entry.label}
+		if entry.has("value_getter"):
+			item["value"] = (entry.value_getter as Callable).call()
+		if entry.has("options"):
+			item["options"] = entry.options
+		items.append(item)
+	return items
+
+func _bridge_send_sync() -> void:
+	if not _bridge_active:
+		return
+	EngineDebugger.send_message("%s:sync" % BRIDGE_NAME, [_bridge_snapshot()])
+
+## エディタから来た知らせを受ける。`EngineDebugger.register_message_capture()`
+## へ渡す関数そのもの。合言葉に合わない知らせは扱わず `false` を返す。
+func _bridge_capture(message: String, data: Array) -> bool:
+	match message:
+		"%s:sync_request" % BRIDGE_NAME:
+			_bridge_send_sync()
+			return true
+		"%s:invoke" % BRIDGE_NAME:
+			if data.size() >= 1:
+				_bridge_invoke(int(data[0]))
+			return true
+		"%s:set_value" % BRIDGE_NAME:
+			if data.size() >= 2:
+				_bridge_set_value(int(data[0]), data[1])
+			return true
+		_:
+			return false
+
+func _bridge_invoke(id: int) -> void:
+	if not _bridge_items.has(id):
+		return
+	var entry: Dictionary = _bridge_items[id]
+	if entry.has("invoke"):
+		(entry.invoke as Callable).call()
+
+func _bridge_set_value(id: int, value: Variant) -> void:
+	if not _bridge_items.has(id):
+		return
+	var entry: Dictionary = _bridge_items[id]
+	if entry.has("set_value"):
+		(entry.set_value as Callable).call(value)
+
+## 監視値の差分をエディタへ送る。値が変わった項目だけを送る。
+func _bridge_poll_values() -> void:
+	for id: int in _bridge_items.keys():
+		var entry: Dictionary = _bridge_items[id]
+		if not entry.has("value_getter"):
+			continue
+		var value: Variant = (entry.value_getter as Callable).call()
+		if entry.has("last_value") and entry.last_value == value:
+			continue
+		entry["last_value"] = value
+		if _bridge_active:
+			EngineDebugger.send_message("%s:value" % BRIDGE_NAME, [id, value])
 
 func _set_open(value: bool) -> void:
 	if not is_instance_valid(_panel) or _panel.visible == value:
