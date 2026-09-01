@@ -151,9 +151,31 @@ font_size=25
 
 同じ隅に別の釦（[GMornIssueMaker](https://github.com/TsukumiStudio/GMornIssueMaker) の不具合報告など）があるときは、`button_margin_y` を縦にずらして重なりを避ける。
 
+### 7. リモート操作の仕組み
+
+エディタから「実行」したとき（`EngineDebugger.is_active()` が真のとき）は、足した項目の一覧と監視値がエディタのデバッガパネルの「GMornDebugMenu」タブへ届く。タブから釦を押す・つまみや数を送る・入り切りを切り替える・選ぶと、実行中のゲームの側で対応する `Callable`（`add_button()` の `action`、`add_number()`/`add_slider()` の `setter`、`add_toggle()` の `on_toggled`、`add_option()` の `on_selected`）がそのまま呼ばれる。実機・書き出したものが手元に無くても、画面を持たないヘッドレスな実行でも、エディタから項目を叩ける。
+
+配布物には `plugin.gd` だけが載る（エディタ拡張なので配布物の中では動かない）。既存の `add_*` 系の呼び出し方・返り値は変わらない。
+
+合言葉は `gmorn_debug_menu`。`EngineDebugger.register_message_capture()`（ランタイム側）と `EditorDebuggerPlugin._has_capture()`（エディタ側）の両方がこの文字列で揃っている。
+
+知らせは `"gmorn_debug_menu:サブコマンド"` の形。
+
+| 向き | サブコマンド | data | いつ流れるか |
+| --- | --- | --- | --- |
+| ランタイム→エディタ | `sync` | `[items: Array]` | 項目を足したとき・`sync_request` を受けたとき。`items` は `{id, kind, label, value?, options?}` の配列 |
+| ランタイム→エディタ | `value` | `[id, value]` | 監視値が変わったとき（0.3秒ごとに巡回して差分だけ送る） |
+| ランタイム→エディタ | `status` | `[message]` | `set_status()` が呼ばれたとき |
+| ランタイム→エディタ | `clear` | `[]` | `clear_items()` が呼ばれたとき |
+| エディタ→ランタイム | `sync_request` | `[]` | パネルのタブを開いた・実行が始まったとき |
+| エディタ→ランタイム | `invoke` | `[id]` | 釦を押したとき（`add_button()` / `add_confirm_button()` の行） |
+| エディタ→ランタイム | `set_value` | `[id, value]` | つまみ・数・選び・入り切りの行を操作したとき |
+
+`kind` は `button` / `slider` / `number` / `option` / `toggle` / `label` のいずれか。`add_separator()` の区切り線は流さない。
+
 ### 手を入れる
 
-`verify.sh` で、項目の足し方と二度押しの構えを確かめられる。板を作らない側でも呼び出しが通ることも見る。
+`verify.sh` で、項目の足し方と二度押しの構えを確かめられる。板を作らない側でも呼び出しが通ることも見る。エディタへの橋渡し（`_bridge_*`）も、`EngineDebugger` に繋がっていない前提でここから直に呼んで確かめる。
 
 ```
 ./verify.sh
