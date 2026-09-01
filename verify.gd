@@ -45,6 +45,53 @@ func _run() -> void:
 	quiet.toggle()
 	assert(not quiet.is_open(), "板が無いのに開いた")
 
+	# --- エディタのデバッガパネルとの橋渡し ------------------------------------
+	#
+	# `EngineDebugger` に繋がっていない（ここでの実行はそう）ときも、足した
+	# 項目の記録は続く。`_bridge_*` を直に呼んで、繋がったときの動きを確かめる。
+	assert(quiet._bridge_items.size() == 3, "板の無い側でも記録が %d 件" % quiet._bridge_items.size())
+	var snapshot: Array = quiet._bridge_snapshot()
+	assert(snapshot.size() == 3, "一覧の数が %d" % snapshot.size())
+	assert(snapshot[0].kind == "button" and snapshot[0].label == "何か",
+		"釦の記録が %s" % str(snapshot[0]))
+	assert(snapshot[1].kind == "label" and snapshot[1].value == "見るだけ",
+		"見るだけの行の記録が %s" % str(snapshot[1]))
+	assert(snapshot[2].kind == "toggle" and snapshot[2].value == false,
+		"入り切りの行の記録が %s" % str(snapshot[2]))
+
+	# 合言葉に合わない知らせは扱わず false を返す。
+	assert(not quiet._bridge_capture("gmorn_debug_menu:何か知らない", []),
+		"知らない知らせを扱ってしまった")
+
+	# invoke は釦を押した扱いと同じ道を通す。
+	var bridged_pressed: Array = []
+	quiet.add_button("橋渡し用", func() -> void: bridged_pressed.append(true))
+	var bridged_button_id: int = quiet._bridge_next_id - 1
+	assert(quiet._bridge_capture("gmorn_debug_menu:invoke", [bridged_button_id]),
+		"invoke を扱わなかった")
+	assert(bridged_pressed.size() == 1, "invoke で押されない")
+
+	# set_value は対応する受け口を呼ぶ。
+	var bridged_toggled: Array = []
+	quiet.add_toggle("橋渡し切替", func(value: bool) -> void: bridged_toggled.append(value))
+	var toggle_id: int = quiet._bridge_next_id - 1
+	assert(quiet._bridge_capture("gmorn_debug_menu:set_value", [toggle_id, true]),
+		"set_value を扱わなかった")
+	assert(bridged_toggled == [true], "set_value で切り替わらない: %s" % str(bridged_toggled))
+
+	# 巡回すると、変わった監視値を憶える。
+	quiet._bridge_poll_values()
+	assert(quiet._bridge_items[toggle_id].last_value == true,
+		"巡回しても監視値が更新されない")
+	# 変わっていないところをもう一度巡っても落ちない。
+	quiet._bridge_poll_values()
+	assert(quiet._bridge_items[toggle_id].last_value == true,
+		"変わっていないのに監視値が変わった")
+
+	# clear_items() で記録も一緒に消える。次に開いたときに古い id が残らない。
+	quiet.clear_items()
+	assert(quiet._bridge_items.is_empty(), "clear_items() で橋渡しの記録が残っている")
+
 	# ここから先は板を作らせる。
 	ProjectSettings.set_setting("gmorn_debug_menu/build_when_headless", true)
 	var menu: CanvasLayer = script.new()
