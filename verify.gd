@@ -407,6 +407,35 @@ func _run() -> void:
 	# 走の間に置き土産を残さない。次の走が読んでしまう。
 	_forget_stored_volume()
 
+	# --- 独立ウィンドウが使う項目UI（gmorn_debug_menu_debugger_tab.gd）--------
+	#
+	# デバッガパネルのタブと独立ウィンドウは同じこのスクリプトを使い回す。
+	# 繋いだ側（本物の EditorDebuggerSession が要る）はエディタの中でしか
+	# 確かめられないため、ここでは繋がない側の分岐だけを見る。未接続でも
+	# 表示だけ出てエラーにならないことが、非実行時の要件そのもの。
+	var tab_script: GDScript = load(
+		"res://addons/gmorn_debug_menu/gmorn_debug_menu_debugger_tab.gd")
+	var tab: VBoxContainer = tab_script.new()
+	root.add_child(tab)
+	tab.setup()
+	assert(tab._status_label.text == "実行中プロセスなし",
+		"未接続の表示が %s" % tab._status_label.text)
+	tab.handle_message("gmorn_debug_menu:sync", [[
+		{"id": 1, "kind": "button", "label": "何か"},
+	]])
+	assert(tab._list.get_child_count() == 1, "項目が描かれない")
+	tab.on_session_stopped()
+	assert(tab._list.get_child_count() == 0, "止まっても一覧が残る")
+	assert(tab._status_label.text == "実行中プロセスなし",
+		"止まっても未接続の表示に戻らない")
+	# セッションが無いままボタンを押しても落ちない（送る先が無いだけ）。
+	tab.handle_message("gmorn_debug_menu:sync", [[
+		{"id": 2, "kind": "button", "label": "押しても落ちない"},
+	]])
+	var pressless_button: Button = tab._list.get_child(0).get_child(1)
+	pressless_button.pressed.emit()
+	tab.queue_free()
+
 	print("知らせ=%s 数=%f 選び=%d" % [str(toggles), stored[0], chosen[0]])
 	print("GMORN DEBUG MENU VERIFY: PASS")
 	quit(0)

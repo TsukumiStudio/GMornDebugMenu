@@ -1,9 +1,14 @@
 extends VBoxContainer
 
-## デバッガパネルの中身。
+## デバッガパネルの中身。項目一覧を描き、監視値の知らせで更新表示し、
+## 釦・つまみ・選び・入り切りの操作をランタイムへ送る。ランタイム側は
+## `gmorn_debug_menu.gd` の `_bridge_*`。
 ##
-## 項目一覧を描き、監視値の知らせで更新表示し、釦・つまみ・選び・入り切りの
-## 操作をランタイムへ送る。ランタイム側は `gmorn_debug_menu.gd` の `_bridge_*`。
+## デバッガパネルのタブ (`gmorn_debug_menu_debugger_plugin.gd` が作る) と、
+## 独立ウィンドウ (`gmorn_debug_menu_window.gd` が作る) の両方から使う。
+## ウィンドウ側はセッションが無い状態でも開けるため、`session` は無くてよい。
+
+const DISCONNECTED_STATUS := "実行中プロセスなし"
 
 var _session: EditorDebuggerSession
 var _list: VBoxContainer
@@ -11,8 +16,7 @@ var _status_label: Label
 ## 監視値を映す行。`id (int) -> {kind, control}`。
 var _rows: Dictionary = {}
 
-func setup(session: EditorDebuggerSession) -> void:
-	_session = session
+func setup(session: EditorDebuggerSession = null) -> void:
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(scroll)
@@ -22,6 +26,20 @@ func setup(session: EditorDebuggerSession) -> void:
 	add_child(HSeparator.new())
 	_status_label = Label.new()
 	add_child(_status_label)
+	set_session(session)
+
+## 繋ぐセッションを差し替える。`null` なら未接続として表示する。
+func set_session(session: EditorDebuggerSession) -> void:
+	_session = session
+	if _session == null:
+		_rebuild([])
+		_status_label.text = DISCONNECTED_STATUS
+	else:
+		_status_label.text = ""
+
+## 繋いでいたセッションが止まったときに呼ぶ。一覧を空にし、未接続の旨を表示する。
+func on_session_stopped() -> void:
+	set_session(null)
 
 ## 実行が始まったとき、いまの項目一覧を貰い直す。
 func request_sync() -> void:
@@ -63,13 +81,15 @@ func _add_row(item: Dictionary) -> void:
 			var button := Button.new()
 			button.text = "実行"
 			button.pressed.connect(func() -> void:
-				_session.send_message("gmorn_debug_menu:invoke", [id]))
+				if _session != null:
+					_session.send_message("gmorn_debug_menu:invoke", [id]))
 			row.add_child(button)
 		"toggle":
 			var check := CheckButton.new()
 			check.button_pressed = bool(item.get("value", false))
 			check.toggled.connect(func(value: bool) -> void:
-				_session.send_message("gmorn_debug_menu:set_value", [id, value]))
+				if _session != null:
+					_session.send_message("gmorn_debug_menu:set_value", [id, value]))
 			row.add_child(check)
 			_rows[id] = {"kind": kind, "control": check}
 		"option":
@@ -78,7 +98,8 @@ func _add_row(item: Dictionary) -> void:
 				option.add_item(text)
 			option.selected = int(item.get("value", 0))
 			option.item_selected.connect(func(index: int) -> void:
-				_session.send_message("gmorn_debug_menu:set_value", [id, index]))
+				if _session != null:
+					_session.send_message("gmorn_debug_menu:set_value", [id, index]))
 			row.add_child(option)
 			_rows[id] = {"kind": kind, "control": option}
 		"number", "slider":
@@ -94,7 +115,8 @@ func _add_row(item: Dictionary) -> void:
 			var apply := Button.new()
 			apply.text = "送る"
 			apply.pressed.connect(func() -> void:
-				_session.send_message("gmorn_debug_menu:set_value", [id, spin.value]))
+				if _session != null:
+					_session.send_message("gmorn_debug_menu:set_value", [id, spin.value]))
 			row.add_child(apply)
 			_rows[id] = {"kind": kind, "control": value_label}
 		"label":
