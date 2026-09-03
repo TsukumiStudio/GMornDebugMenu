@@ -491,6 +491,85 @@ func _run() -> void:
 	dock.unregister_section(&"存在しない")
 	dock.queue_free()
 
+	# --- .tres 駆動のセクション列挙（gmorn_debug_menu_section.gd / _scanner.gd）--
+	#
+	# 派生スクリプトを付けた .tres を指定フォルダへ置くだけでセクションが増える
+	# ことを確かめる。コードを変えず .tres を足すだけで増えることが要件。
+	var scanner_script: GDScript = load(
+		"res://addons/gmorn_debug_menu/gmorn_debug_menu_section_scanner.gd")
+	var section_dir_path: String = scanner_script.section_dir()
+	assert(section_dir_path == "res://assets/debug_sections/",
+		"既定の置き場が %s" % section_dir_path)
+	# 置いていないプロジェクトでも落ちない。
+	assert(scanner_script.scan("res://存在しないフォルダ/").is_empty(),
+		"無い置き場でも空にならない")
+
+	var abs_section_dir: String = ProjectSettings.globalize_path(section_dir_path)
+	DirAccess.make_dir_recursive_absolute(abs_section_dir)
+
+	# 派生スクリプトを書く。`class_name` は付けず、絶対パスの extends にする
+	# （アドオン側の既定と揃える）。
+	var derived := GDScript.new()
+	derived.source_code = "extends \"res://addons/gmorn_debug_menu/gmorn_debug_menu_section.gd\"\n" \
+		+ "func create_control() -> Control:\n" \
+		+ "\tvar label := Label.new()\n" \
+		+ "\tlabel.text = \"検証用セクション\"\n" \
+		+ "\treturn label\n"
+	assert(derived.reload() == OK, "派生スクリプトの読み込みに失敗")
+	var derived_path := "res://verify_debug_section.gd"
+	assert(ResourceSaver.save(derived, derived_path) == OK, "派生スクリプトを書けない")
+	derived = load(derived_path)
+
+	# id を指定しない .tres。既定でファイル名（拡張子抜き）から id を作る。
+	var example: Resource = derived.new()
+	example.title = "検証用セクション"
+	var example_path := section_dir_path.path_join("example.tres")
+	assert(ResourceSaver.save(example, example_path) == OK, "tres を書けない")
+
+	# id を指定した .tres。ファイル名の代わりにそちらを使う。
+	var custom: Resource = derived.new()
+	custom.title = "カスタムIDのセクション"
+	custom.section_id = &"custom_id"
+	var custom_path := section_dir_path.path_join("custom.tres")
+	assert(ResourceSaver.save(custom, custom_path) == OK, "section_id 付きの tres を書けない")
+
+	# 継承していない .tres が同じ置き場に混ざっていても無視する。
+	var unrelated_path := section_dir_path.path_join("unrelated.tres")
+	assert(ResourceSaver.save(Resource.new(), unrelated_path) == OK, "無関係な tres を書けない")
+
+	# ファイル名順（custom.tres → example.tres → unrelated.tres）に列挙する。
+	# unrelated.tres は継承していないので数に入らない。
+	var scanned: Array[Resource] = scanner_script.scan()
+	assert(scanned.size() == 2, "見つけたセクションが %d 件" % scanned.size())
+	assert(scanned[0].title == "カスタムIDのセクション" and scanned[1].title == "検証用セクション",
+		"見つけた順が %s" % [scanned.map(func(s: Resource) -> String: return s.title)])
+	assert(scanner_script.section_id(scanned[0]) == &"custom_id",
+		"section_id を指定したときの id が %s" % scanner_script.section_id(scanned[0]))
+	assert(scanner_script.section_id(scanned[1]) == &"example",
+		"id を指定していないときの既定が %s" % scanner_script.section_id(scanned[1]))
+
+	var control: Control = scanned[1].create_control()
+	assert(control is Label and control.text == "検証用セクション", "tres から作った中身が違う")
+	control.queue_free()
+
+	# plugin.gd の _register_tres_sections() 相当（ドックへ実際に足す側）。
+	var scan_dock_script: GDScript = load(
+		"res://addons/gmorn_debug_menu/gmorn_debug_menu_dock.gd")
+	var scan_dock: VBoxContainer = scan_dock_script.new()
+	root.add_child(scan_dock)
+	scan_dock.setup()
+	for section: Resource in scanner_script.scan():
+		scan_dock.register_section(
+			scanner_script.section_id(section), section.title, section.create_control())
+	assert(scan_dock.section_ids() == [&"custom_id", &"example"],
+		"tres から足したセクションが %s" % str(scan_dock.section_ids()))
+	scan_dock.queue_free()
+
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(example_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(custom_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(unrelated_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(derived_path))
+
 	print("知らせ=%s 数=%f 選び=%d" % [str(toggles), stored[0], chosen[0]])
 	print("GMORN DEBUG MENU VERIFY: PASS")
 	quit(0)
