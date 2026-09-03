@@ -436,6 +436,61 @@ func _run() -> void:
 	pressless_button.pressed.emit()
 	tab.queue_free()
 
+	# --- エディタドックのセクション拡張（gmorn_debug_menu_dock.gd）------------
+	#
+	# 他のアドオンやプロジェクトが `register_section()` / `unregister_section()`
+	# で自分のセクションを差し込める。既存の実行中プロセス連携UIも
+	# `plugin.gd` から見ればこの仕組みに載る1つのセクションでしかない
+	# （`plugin.gd` 自体はエディタでしか動かないためここでは確かめない）。
+	var dock_script: GDScript = load(
+		"res://addons/gmorn_debug_menu/gmorn_debug_menu_dock.gd")
+	var dock: VBoxContainer = dock_script.new()
+	root.add_child(dock)
+	dock.setup()
+	assert(dock.section_ids().is_empty(), "はじめから節がある")
+
+	var section_a := Label.new()
+	section_a.text = "節A"
+	dock.register_section(&"a", "節A", section_a)
+	var section_b := Label.new()
+	section_b.text = "節B"
+	dock.register_section(&"b", "節B", section_b)
+	assert(dock.section_ids() == [&"a", &"b"], "登録した順に並ばない: %s" % str(dock.section_ids()))
+	assert(dock.has_section(&"a") and dock.has_section(&"b"), "登録した節が無いと言う")
+	assert(_is_under(section_a, dock), "節Aの中身がドックの下に無い")
+	assert(_is_under(section_b, dock), "節Bの中身がドックの下に無い")
+
+	# 見出しの釦は折りたたみも兼ねる。押すと中身の表示が切り替わる。
+	var header_a: Button = section_a.get_parent().get_child(0)
+	assert(header_a.text == "節A", "見出しの文字が %s" % header_a.text)
+	assert(section_a.visible, "はじめから畳まれている")
+	header_a.toggled.emit(false)
+	assert(not section_a.visible, "畳んでも隠れない")
+	header_a.toggled.emit(true)
+	assert(section_a.visible, "開いても表示されない")
+
+	# 同じ id で登録し直すと、古い方を外して差し替える。並び順は最後尾へ移る
+	# （外してから足し直すだけの単純な仕組みなので、元の位置には戻らない）。
+	var section_a2 := Label.new()
+	section_a2.text = "節A差し替え"
+	dock.register_section(&"a", "節A差し替え", section_a2)
+	assert(dock.section_ids() == [&"b", &"a"], "差し替え後の並びが %s" % str(dock.section_ids()))
+	assert(not _is_under(section_a, dock), "差し替えた古い中身が残っている")
+	assert(_is_under(section_a2, dock), "差し替えた新しい中身が無い")
+	section_a.queue_free()
+
+	# 外すと一覧から消える。渡した Control 自体は消さず、呼び出し側へ返す。
+	dock.unregister_section(&"b")
+	assert(dock.section_ids() == [&"a"], "外した後の並びが %s" % str(dock.section_ids()))
+	assert(not dock.has_section(&"b"), "外したのに残っていると言う")
+	assert(section_b.get_parent() == null, "外した中身がまだ木に居る")
+	assert(not section_b.is_queued_for_deletion(), "外しただけで中身を消してしまった")
+	section_b.queue_free()
+
+	# 登録していない id を外しても落ちない。
+	dock.unregister_section(&"存在しない")
+	dock.queue_free()
+
 	print("知らせ=%s 数=%f 選び=%d" % [str(toggles), stored[0], chosen[0]])
 	print("GMORN DEBUG MENU VERIFY: PASS")
 	quit(0)
