@@ -9,11 +9,24 @@ extends EditorPlugin
 const AUTOLOAD_NAME := "GMornDebugMenu"
 const DebuggerPluginScript := preload("gmorn_debug_menu_debugger_plugin.gd")
 const TabScript := preload("gmorn_debug_menu_debugger_tab.gd")
+const DockScript := preload("gmorn_debug_menu_dock.gd")
+
+## 実行中プロセス連携UIを載せる既定セクションの id とタイトル。
+const PROCESS_SECTION_ID := &"process"
+const PROCESS_SECTION_TITLE := "実行中プロセス"
+
+## 他アドオンが `Engine.get_meta(&"gmorn_debug_menu_dock")` でドックの中身
+## (`gmorn_debug_menu_dock.gd` のインスタンス) を見つけるための鍵。
+## README.md の「9. ドックへセクションを足す」を参照。
+const DOCK_META_KEY := &"gmorn_debug_menu_dock"
 
 var _debugger_plugin: EditorDebuggerPlugin
-## エディタに常時表示するドック。中身は `gmorn_debug_menu_debugger_tab.gd` を使い回す。
+## エディタに常時表示するドック。中身は `gmorn_debug_menu_dock.gd` で、
+## セクションを縦に並べる。実行中プロセス連携UIも1つのセクションとして載る。
 var _dock: EditorDock
 var _dock_content: Control
+## 既定セクション（実行中プロセス連携UI）の中身。`gmorn_debug_menu_debugger_tab.gd`。
+var _process_section: Control
 
 ## 置き場所を決め打ちにしない。submodule で好きな名前の場所へ入れられるように、
 ## 自分の居場所から辿る。
@@ -24,8 +37,11 @@ func _enter_tree() -> void:
 	add_autoload_singleton(AUTOLOAD_NAME, _autoload_path())
 	_debugger_plugin = DebuggerPluginScript.new()
 	add_debugger_plugin(_debugger_plugin)
-	_dock_content = TabScript.new()
+	_dock_content = DockScript.new()
 	_dock_content.setup()
+	_process_section = TabScript.new()
+	_process_section.setup()
+	_dock_content.register_section(PROCESS_SECTION_ID, PROCESS_SECTION_TITLE, _process_section)
 	_dock = EditorDock.new()
 	_dock.name = AUTOLOAD_NAME
 	_dock.title = AUTOLOAD_NAME
@@ -35,9 +51,11 @@ func _enter_tree() -> void:
 	_dock.available_layouts = EditorDock.DOCK_LAYOUT_VERTICAL | EditorDock.DOCK_LAYOUT_FLOATING
 	_dock.add_child(_dock_content)
 	add_dock(_dock)
-	_debugger_plugin.bind_dock(_dock_content)
+	_debugger_plugin.bind_dock(_process_section)
+	Engine.set_meta(DOCK_META_KEY, _dock_content)
 
 func _exit_tree() -> void:
+	Engine.remove_meta(DOCK_META_KEY)
 	remove_autoload_singleton(AUTOLOAD_NAME)
 	remove_debugger_plugin(_debugger_plugin)
 	_debugger_plugin.unbind_dock()
@@ -46,3 +64,4 @@ func _exit_tree() -> void:
 	_dock.queue_free()
 	_dock = null
 	_dock_content = null
+	_process_section = null
