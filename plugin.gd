@@ -10,6 +10,7 @@ const AUTOLOAD_NAME := "GMornDebugMenu"
 const DebuggerPluginScript := preload("gmorn_debug_menu_debugger_plugin.gd")
 const TabScript := preload("gmorn_debug_menu_debugger_tab.gd")
 const DockScript := preload("gmorn_debug_menu_dock.gd")
+const SectionScannerScript := preload("gmorn_debug_menu_section_scanner.gd")
 
 ## 実行中プロセス連携UIを載せる既定セクションの id とタイトル。
 const PROCESS_SECTION_ID := &"process"
@@ -42,6 +43,7 @@ func _enter_tree() -> void:
 	_process_section = TabScript.new()
 	_process_section.setup()
 	_dock_content.register_section(PROCESS_SECTION_ID, PROCESS_SECTION_TITLE, _process_section)
+	_register_tres_sections()
 	_dock = EditorDock.new()
 	_dock.name = AUTOLOAD_NAME
 	_dock.title = AUTOLOAD_NAME
@@ -53,6 +55,17 @@ func _enter_tree() -> void:
 	add_dock(_dock)
 	_debugger_plugin.bind_dock(_process_section)
 	Engine.set_meta(DOCK_META_KEY, _dock_content)
+
+## `gmorn_debug_menu_section_scanner.gd` が見つけた `.tres` を、ドックへ
+## セクションとして足す。`.tres` を足すだけで増える側で、既存の
+## `register_section()` を直に呼ぶ側とは独立している（両方を同時に使ってよい）。
+func _register_tres_sections() -> void:
+	for section: Resource in SectionScannerScript.scan():
+		var control: Control = section.create_control()
+		if control == null:
+			push_warning("セクションの中身が作られなかった: %s" % section.resource_path)
+			continue
+		_dock_content.register_section(SectionScannerScript.section_id(section), section.title, control)
 
 func _exit_tree() -> void:
 	Engine.remove_meta(DOCK_META_KEY)
