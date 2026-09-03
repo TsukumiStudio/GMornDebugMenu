@@ -210,6 +210,37 @@ func _enter_tree() -> void:
 
 `control` は呼び出し側が作って渡す（`gmorn_debug_menu_dock.gd` 側では作らない）。`plugin.gd` の `_exit_tree()` でアドオンを外すときは、自分で `unregister_section()` を呼ぶこと。`GMornDebugMenu` 側のドックごと消える場合（`GMornDebugMenu` 自体を無効にしたときなど）は、渡した `control` も一緒に消える。
 
+**3. `.tres` を置くだけで足す（コードを変えない）**
+
+`register_section()` を呼ぶコードを書かなくても、`.tres` を決まった置き場へ足すだけでセクションが増える仕組みがある。Unity版 `MornDebugMenuBase`（`ScriptableObject` 派生を並べる仕組み）の Godot 版に相当する。`plugin.gd` がエディタに入るたびに `gmorn_debug_menu_section_scanner.gd` が置き場を列挙し、見つけた `.tres` を `register_section()` で足す。
+
+手順は次の3つ。
+
+1. `gmorn_debug_menu_section.gd` を継承したスクリプトを書き、`create_control()` をオーバーライドする。
+
+    ```gdscript
+    extends "res://addons/gmorn_debug_menu/gmorn_debug_menu_section.gd"
+
+    func create_control() -> Control:
+        var label := Label.new()
+        label.text = "自分のアドオン"
+        return label
+    ```
+
+2. Godotのエディタでこのスクリプトを付けた `Resource`（新規リソース → スクリプトを選ぶ）を作り、`.tres` として保存する。Inspectorの `Title` にドックの見出しを入れる。`Section Id` は空でよい（空なら `.tres` のファイル名から作る。他の置き場と被らない `id` にしたいときだけ指定する）。
+
+3. その `.tres` を `gmorn_debug_menu/section_dir`（既定 `res://assets/debug_sections/`）へ置く。エディタを開き直す（またはプラグインを入れ直す）と、ドックへセクションとして並ぶ。
+
+置き場を既定から変えたいときは、`project.godot` へ書く。
+
+```
+[gmorn_debug_menu]
+
+section_dir="res://addons/my_project/debug_sections/"
+```
+
+置き場が無い、または `.tres` を1つも置いていないプロジェクトでも落ちない。継承していない `.tres` が同じ置き場に紛れ込んでいても無視する。`register_section()` を直に呼ぶ側（上の1・2）とは独立しており、両方を同時に使ってよい。
+
 ### 手を入れる
 
 `verify.sh` で、項目の足し方と二度押しの構えを確かめられる。板を作らない側でも呼び出しが通ることも見る。エディタへの橋渡し（`_bridge_*`）も、`EngineDebugger` に繋がっていない前提でここから直に呼んで確かめる。
