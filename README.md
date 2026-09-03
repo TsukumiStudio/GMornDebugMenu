@@ -180,7 +180,35 @@ font_size=25
 - 実行中のプロセスがあれば、そのままデバッガパネルのタブと同じ内容が届く。押す・つまむ・選ぶ・入り切りの操作も同じように実行中のゲームへ届く
 - 実行していない、またはまだ繋がっていないときは「実行中プロセスなし」と表示され、エラーは出さない
 
-中身は `gmorn_debug_menu_debugger_tab.gd` をそのまま使う。繋ぐ先のセッションは `gmorn_debug_menu_debugger_plugin.gd` の `bind_dock()` が選ぶ。
+中身は `gmorn_debug_menu_dock.gd`。複数のセクション（タイトル+Control）を縦に並べる仕組みで、実行中プロセス連携UI（`gmorn_debug_menu_debugger_tab.gd`）は `id = "process"` の既定セクションとしてここへ載っている。繋ぐ先のセッションは `gmorn_debug_menu_debugger_plugin.gd` の `bind_dock()` が選ぶ。
+
+### 9. ドックへセクションを足す
+
+他のアドオンやプロジェクトが、このドックへ自分のセクション（タイトル+Control）を差し込める。Unity版 `MornDebugMenuBase` の派生をデバッグメニューへ並べる仕組みに相当する。
+
+**1. ドックの中身 (`gmorn_debug_menu_dock.gd` のインスタンス) を見つける。**
+
+`GMornDebugMenu` の `plugin.gd` はエディタに入るとき、`Engine.set_meta(&"gmorn_debug_menu_dock", <ドックの中身>)` でドックの中身を印す（エディタから出るとき `Engine.remove_meta()` で外す）。他のアドオンの `plugin.gd` から次のように参照する。
+
+```gdscript
+func _enter_tree() -> void:
+	if Engine.has_meta(&"gmorn_debug_menu_dock"):
+		var dock: Control = Engine.get_meta(&"gmorn_debug_menu_dock")
+		dock.register_section(&"my_addon", "自分のアドオン", _build_my_control())
+```
+
+`GMornDebugMenu` が無効・未導入のときは `has_meta()` が偽になるので、無くても落ちない作りにする（`GMornDebugMenu` への依存を必須にしない）。
+
+**2. `register_section(id, title, control)` / `unregister_section(id)`**
+
+| 呼び出し | 効き目 |
+| --- | --- |
+| `register_section(id: StringName, title: String, control: Control)` | `control` を、折りたたみ釦付きの見出し（`title`）と一緒にドックの最後尾へ足す。同じ `id` が既にあれば先に外してから差し替える（**並び順は最後尾へ移る**） |
+| `unregister_section(id: StringName)` | 足したセクションを外す。**渡した `control` 自体は消さず、木から外すだけ**に留める。以後の後始末（`queue_free()` など）は呼び出し側が行う。登録していない `id` を渡しても何もしない |
+| `has_section(id: StringName) -> bool` | 登録済みか |
+| `section_ids() -> Array[StringName]` | いま並んでいるセクションの `id` を登録順で返す |
+
+`control` は呼び出し側が作って渡す（`gmorn_debug_menu_dock.gd` 側では作らない）。`plugin.gd` の `_exit_tree()` でアドオンを外すときは、自分で `unregister_section()` を呼ぶこと。`GMornDebugMenu` 側のドックごと消える場合（`GMornDebugMenu` 自体を無効にしたときなど）は、渡した `control` も一緒に消える。
 
 ### 手を入れる
 
