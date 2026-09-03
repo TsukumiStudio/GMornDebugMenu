@@ -5,8 +5,8 @@ extends VBoxContainer
 ## `gmorn_debug_menu.gd` の `_bridge_*`。
 ##
 ## デバッガパネルのタブ (`gmorn_debug_menu_debugger_plugin.gd` が作る) と、
-## 独立ウィンドウ (`gmorn_debug_menu_window.gd` が作る) の両方から使う。
-## ウィンドウ側はセッションが無い状態でも開けるため、`session` は無くてよい。
+## エディタ常時表示のドック (`plugin.gd` が作る) の両方から使う。
+## ドック側はセッションが無い状態でも表示するため、`session` は無くてよい。
 
 const DISCONNECTED_STATUS := "実行中プロセスなし"
 
