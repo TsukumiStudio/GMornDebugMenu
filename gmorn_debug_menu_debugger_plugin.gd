@@ -32,9 +32,16 @@ func _setup_session(session_id: int) -> void:
 	session.add_session_tab(tab)
 	_tabs[session_id] = tab
 	# 実行が始まるたびに、そのときの項目一覧を貰い直す。
-	session.started.connect(tab.request_sync)
+	session.started.connect(_on_session_started.bind(session_id))
 	session.stopped.connect(_on_session_stopped.bind(session_id))
-	# ドックがまだどこにも繋がっていなければ、ここへ繋ぐ。
+	if session.is_active():
+		_on_session_started(session_id)
+
+## セッションは再実行で再利用されるため、生成時ではなく開始通知ごとに接続する。
+func _on_session_started(session_id: int) -> void:
+	var tab: Control = _tabs[session_id]
+	tab.set_session(get_session(session_id))
+	tab.request_sync()
 	if _dock_content != null and _dock_session_id == -1:
 		_attach_dock_to_session(session_id)
 
@@ -56,6 +63,7 @@ func bind_dock(content: Control) -> void:
 	if active_id != -1:
 		_attach_dock_to_session(active_id)
 	else:
+		_dock_session_id = -1
 		content.set_session(null)
 
 ## プラグインを外す（`_exit_tree()`）ときに呼ぶ。
@@ -76,6 +84,7 @@ func _attach_dock_to_session(session_id: int) -> void:
 	_dock_content.request_sync()
 
 func _on_session_stopped(session_id: int) -> void:
+	_tabs[session_id].on_session_stopped()
 	if _dock_session_id != session_id:
 		return
 	var next_id := _find_active_session_id()

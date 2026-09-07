@@ -171,6 +171,8 @@ font_size=25
 | エディタ→ランタイム | `invoke` | `[id]` | 釦を押したとき（`add_button()` / `add_confirm_button()` の行） |
 | エディタ→ランタイム | `set_value` | `[id, value]` | つまみ・数・選び・入り切りの行を操作したとき |
 
+ゲーム側の `EngineDebugger.register_message_capture()` には接頭辞が除かれた `invoke` / `set_value` / `sync_request` が届く。エディタ側の `_capture()` には接頭辞付きで届くため、両側で同じ照合形式にしない。
+
 `kind` は `button` / `slider` / `number` / `option` / `toggle` / `label` のいずれか。`add_separator()` の区切り線は流さない。
 
 ### 8. エディタのドック
@@ -180,7 +182,7 @@ font_size=25
 - 実行中のプロセスがあれば、そのままデバッガパネルのタブと同じ内容が届く。押す・つまむ・選ぶ・入り切りの操作も同じように実行中のゲームへ届く
 - 実行していない、またはまだ繋がっていないときは「実行中プロセスなし」と表示され、エラーは出さない
 
-中身は `gmorn_debug_menu_dock.gd`。複数のセクション（タイトル+Control）を縦に並べる仕組みで、実行中プロセス連携UI（`gmorn_debug_menu_debugger_tab.gd`）は `id = "process"` の既定セクションとしてここへ載っている。繋ぐ先のセッションは `gmorn_debug_menu_debugger_plugin.gd` の `bind_dock()` が選ぶ。
+中身は `gmorn_debug_menu_dock.gd`。複数のセクション（タイトル+Control）を縦に並べる仕組みで、実行中プロセス連携UI（`gmorn_debug_menu_debugger_tab.gd`）は `id = "process"` の既定セクションとしてここへ載っている。繋ぐ先のセッションは `gmorn_debug_menu_debugger_plugin.gd` が選ぶ。セッション生成時に加え、各再生の `started` 通知でドックを接続し直し、停止時には項目と接続先を消す。操作項目を受信したときだけセクションを空き高さへ広げ、停止後は縮める。
 
 ### 9. ドックへセクションを足す
 
@@ -244,6 +246,8 @@ section_dir="res://addons/my_project/debug_sections/"
 各セクションは見出しと中身を同じ背景ボックスで囲み、折りたたむ範囲を示します。見出しの `▼` は展開中、`▶` は折りたたみ中です。見出し全体のクリックで開閉します。
 
 セクションの中身に `size_flags_vertical = Control.SIZE_EXPAND_FILL` を指定すると、ドックの空き高さを使います。折りたたみ中は見出しだけの高さになります。
+
+`python3 verify_remote.py` は一時プロジェクトのEditorとゲームを両方ヘッドレスで起動し、ドックからの操作が初回・停止後の再実行の両方でゲームへ届くことを検証します。Python 3が必要です。
 
 ### 手を入れる
 

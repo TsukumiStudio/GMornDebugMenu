@@ -457,17 +457,17 @@ func _bridge_send_sync() -> void:
 	EngineDebugger.send_message("%s:sync" % BRIDGE_NAME, [_bridge_snapshot()])
 
 ## エディタから来た知らせを受ける。`EngineDebugger.register_message_capture()`
-## へ渡す関数そのもの。合言葉に合わない知らせは扱わず `false` を返す。
+## へ渡す関数そのもの。Godotが合言葉とコロンを除いてから渡すため、命令名だけで照合する。
 func _bridge_capture(message: String, data: Array) -> bool:
 	match message:
-		"%s:sync_request" % BRIDGE_NAME:
+		"sync_request":
 			_bridge_send_sync()
 			return true
-		"%s:invoke" % BRIDGE_NAME:
+		"invoke":
 			if data.size() >= 1:
 				_bridge_invoke(int(data[0]))
 			return true
-		"%s:set_value" % BRIDGE_NAME:
+		"set_value":
 			if data.size() >= 2:
 				_bridge_set_value(int(data[0]), data[1])
 			return true

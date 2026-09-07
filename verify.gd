@@ -60,14 +60,14 @@ func _run() -> void:
 		"入り切りの行の記録が %s" % str(snapshot[2]))
 
 	# 合言葉に合わない知らせは扱わず false を返す。
-	assert(not quiet._bridge_capture("gmorn_debug_menu:何か知らない", []),
+	assert(not quiet._bridge_capture("何か知らない", []),
 		"知らない知らせを扱ってしまった")
 
 	# invoke は釦を押した扱いと同じ道を通す。
 	var bridged_pressed: Array = []
 	quiet.add_button("橋渡し用", func() -> void: bridged_pressed.append(true))
 	var bridged_button_id: int = quiet._bridge_next_id - 1
-	assert(quiet._bridge_capture("gmorn_debug_menu:invoke", [bridged_button_id]),
+	assert(quiet._bridge_capture("invoke", [bridged_button_id]),
 		"invoke を扱わなかった")
 	assert(bridged_pressed.size() == 1, "invoke で押されない")
 
@@ -75,7 +75,7 @@ func _run() -> void:
 	var bridged_toggled: Array = []
 	quiet.add_toggle("橋渡し切替", func(value: bool) -> void: bridged_toggled.append(value))
 	var toggle_id: int = quiet._bridge_next_id - 1
-	assert(quiet._bridge_capture("gmorn_debug_menu:set_value", [toggle_id, true]),
+	assert(quiet._bridge_capture("set_value", [toggle_id, true]),
 		"set_value を扱わなかった")
 	assert(bridged_toggled == [true], "set_value で切り替わらない: %s" % str(bridged_toggled))
 

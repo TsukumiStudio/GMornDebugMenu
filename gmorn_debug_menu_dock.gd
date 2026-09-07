@@ -35,6 +35,10 @@ func register_section(id: StringName, title: String, control: Control) -> void:
 		header.text = ("▼  " if expanded else "▶  ") + title
 		header.tooltip_text = "クリックで閉じる" if expanded else "クリックで開く"
 	)
+	control.size_flags_changed.connect(func() -> void:
+		if is_instance_valid(panel):
+			panel.size_flags_vertical = control.size_flags_vertical if header.button_pressed else Control.SIZE_FILL
+	)
 	container.add_child(control)
 	_list.add_child(panel)
 	header.button_pressed = true

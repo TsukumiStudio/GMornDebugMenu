@@ -61,6 +61,7 @@ func handle_message(message: String, data: Array) -> void:
 			_rebuild([])
 
 func _rebuild(items: Array) -> void:
+	size_flags_vertical = Control.SIZE_FILL if items.is_empty() else Control.SIZE_EXPAND_FILL
 	for child in _list.get_children():
 		_list.remove_child(child)
 		child.queue_free()
