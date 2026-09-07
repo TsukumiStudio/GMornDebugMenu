@@ -7,7 +7,9 @@ extends VBoxContainer
 ## 1つの既定セクションとしてここへ載せている。使い方は README.md の
 ## 「9. ドックへセクションを足す」を参照。
 
-## `id (StringName) -> {container: VBoxContainer, header: Button, control: Control}`
+const SECTION_BOX := preload("gmorn_debug_menu_section_box.tscn")
+
+## `id (StringName) -> {panel: PanelContainer, container: VBoxContainer, header: Button, control: Control}`
 var _sections: Dictionary = {}
 var _list: VBoxContainer
 
@@ -24,22 +26,19 @@ func setup() -> void:
 func register_section(id: StringName, title: String, control: Control) -> void:
 	if _sections.has(id):
 		unregister_section(id)
-	var header := Button.new()
-	header.text = title
-	header.toggle_mode = true
-	header.button_pressed = true
-	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	header.toggled.connect(func(pressed: bool) -> void: control.visible = pressed)
-	var container := VBoxContainer.new()
-	# 中身が要求する伸縮を親へ渡す。折りたたみ中は空白を確保しない。
-	container.size_flags_vertical = control.size_flags_vertical
-	control.visibility_changed.connect(func() -> void:
-		container.size_flags_vertical = control.size_flags_vertical if control.visible else Control.SIZE_FILL
+	var panel: PanelContainer = SECTION_BOX.instantiate()
+	var container: VBoxContainer = panel.get_node("Content")
+	var header: Button = container.get_node("Header")
+	header.toggled.connect(func(expanded: bool) -> void:
+		control.visible = expanded
+		panel.size_flags_vertical = control.size_flags_vertical if expanded else Control.SIZE_FILL
+		header.text = ("▼  " if expanded else "▶  ") + title
+		header.tooltip_text = "クリックで閉じる" if expanded else "クリックで開く"
 	)
-	container.add_child(header)
 	container.add_child(control)
-	_list.add_child(container)
-	_sections[id] = {"container": container, "header": header, "control": control}
+	_list.add_child(panel)
+	header.button_pressed = true
+	_sections[id] = {"panel": panel, "container": container, "header": header, "control": control}
 
 ## `register_section()` で足したセクションを外す。渡された `control` 自体は消さず、
 ## 木から外すだけに留める。呼び出し側が作った物なので、後始末は呼び出し側に委ねる。
@@ -51,8 +50,8 @@ func unregister_section(id: StringName) -> void:
 	var container: VBoxContainer = section.container
 	var control: Control = section.control
 	container.remove_child(control)
-	_list.remove_child(container)
-	container.queue_free()
+	_list.remove_child(section.panel)
+	section.panel.queue_free()
 	_sections.erase(id)
 
 ## 登録済みか。

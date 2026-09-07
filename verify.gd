@@ -462,7 +462,7 @@ func _run() -> void:
 
 	# 見出しの釦は折りたたみも兼ねる。押すと中身の表示が切り替わる。
 	var header_a: Button = section_a.get_parent().get_child(0)
-	assert(header_a.text == "節A", "見出しの文字が %s" % header_a.text)
+	assert(header_a.text == "▼  節A", "見出しの文字が %s" % header_a.text)
 	assert(section_a.visible, "はじめから畳まれている")
 	header_a.toggled.emit(false)
 	assert(not section_a.visible, "畳んでも隠れない")

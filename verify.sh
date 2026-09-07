@@ -14,7 +14,7 @@ work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT
 
 mkdir -p "$work_dir/addons/gmorn_debug_menu"
-cp "$addon_dir"/*.gd "$addon_dir"/plugin.cfg "$work_dir/addons/gmorn_debug_menu/"
+cp "$addon_dir"/*.gd "$addon_dir"/*.tscn "$addon_dir"/plugin.cfg "$work_dir/addons/gmorn_debug_menu/"
 cp "$addon_dir/verify.gd" "$work_dir/verify.gd"
 
 cat > "$work_dir/project.godot" <<'PROJECT'
