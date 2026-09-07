@@ -14,6 +14,7 @@ var _list: VBoxContainer
 func setup() -> void:
 	_list = VBoxContainer.new()
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(_list)
 
 ## セクションを登録する。同じ `id` が既にあれば、先に外してから差し替える
@@ -30,6 +31,11 @@ func register_section(id: StringName, title: String, control: Control) -> void:
 	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	header.toggled.connect(func(pressed: bool) -> void: control.visible = pressed)
 	var container := VBoxContainer.new()
+	# 中身が要求する伸縮を親へ渡す。折りたたみ中は空白を確保しない。
+	container.size_flags_vertical = control.size_flags_vertical
+	control.visibility_changed.connect(func() -> void:
+		container.size_flags_vertical = control.size_flags_vertical if control.visible else Control.SIZE_FILL
+	)
 	container.add_child(header)
 	container.add_child(control)
 	_list.add_child(container)

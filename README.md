@@ -241,6 +241,8 @@ section_dir="res://addons/my_project/debug_sections/"
 
 置き場が無い、または `.tres` を1つも置いていないプロジェクトでも落ちない。継承していない `.tres` が同じ置き場に紛れ込んでいても無視する。`register_section()` を直に呼ぶ側（上の1・2）とは独立しており、両方を同時に使ってよい。
 
+セクションの中身に `size_flags_vertical = Control.SIZE_EXPAND_FILL` を指定すると、ドックの空き高さを使います。折りたたみ中は見出しだけの高さになります。
+
 ### 手を入れる
 
 `verify.sh` で、項目の足し方と二度押しの構えを確かめられる。板を作らない側でも呼び出しが通ることも見る。エディタへの橋渡し（`_bridge_*`）も、`EngineDebugger` に繋がっていない前提でここから直に呼んで確かめる。
