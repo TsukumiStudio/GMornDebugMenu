@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[node name="RestartProject" type="Button"]
+layout_mode = 2
+text = "プロジェクトを開き直す"
+tooltip_text = "変更を保存してGodot Editorを再起動します。実行中のゲームは停止します。"

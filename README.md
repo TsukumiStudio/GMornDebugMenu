@@ -278,3 +278,5 @@ menu.set_category("")
 項目名と操作欄は上下に配置し、横スクロールせずドック幅に収める。
 固定UIは `gmorn_debug_menu_browser.tscn` と `gmorn_debug_menu_remote_row.tscn` で編集できる。
 `verify.sh` は幅240/320/520pxと階層移動を、`verify_remote.py` は階層内からの実際の操作送信を確認する。
+
+ドック最上部の「プロジェクトを開き直す」で、変更を保存してGodot Editorを再起動できる。実行中のゲームは停止する。セクションの開閉状態にかかわらず表示する。

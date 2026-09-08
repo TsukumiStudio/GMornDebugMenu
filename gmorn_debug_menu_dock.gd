@@ -7,6 +7,9 @@ extends VBoxContainer
 ## 1つの既定セクションとしてここへ載せている。使い方は README.md の
 ## 「9. ドックへセクションを足す」を参照。
 
+signal restart_requested
+
+const RESTART_BUTTON := preload("gmorn_debug_menu_restart_button.tscn")
 const SECTION_BOX := preload("gmorn_debug_menu_section_box.tscn")
 
 ## `id (StringName) -> {panel: PanelContainer, container: VBoxContainer, header: Button, control: Control}`
@@ -14,6 +17,9 @@ var _sections: Dictionary = {}
 var _list: VBoxContainer
 
 func setup() -> void:
+	var restart_button: Button = RESTART_BUTTON.instantiate()
+	restart_button.pressed.connect(restart_requested.emit)
+	add_child(restart_button)
 	_list = VBoxContainer.new()
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
