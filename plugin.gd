@@ -40,7 +40,6 @@ func _enter_tree() -> void:
 	add_debugger_plugin(_debugger_plugin)
 	_dock_content = DockScript.new()
 	_dock_content.setup()
-	_dock_content.restart_requested.connect(EditorInterface.restart_editor.bind(true))
 	_process_section = TabScript.new()
 	_process_section.setup()
 	_dock_content.register_section(PROCESS_SECTION_ID, PROCESS_SECTION_TITLE, _process_section)

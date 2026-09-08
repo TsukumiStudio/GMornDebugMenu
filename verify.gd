@@ -447,12 +447,6 @@ func _run() -> void:
 	var dock: VBoxContainer = dock_script.new()
 	root.add_child(dock)
 	dock.setup()
-	var restart_calls := [0]
-	dock.restart_requested.connect(func() -> void: restart_calls[0] += 1)
-	var restart_button: Button = dock.get_node("RestartProject")
-	assert(restart_button.text == "プロジェクトを開き直す")
-	restart_button.pressed.emit()
-	assert(restart_calls[0] == 1, "開き直すボタンから要求が届かない")
 	assert(dock.section_ids().is_empty(), "はじめから節がある")
 
 	var section_a := Label.new()

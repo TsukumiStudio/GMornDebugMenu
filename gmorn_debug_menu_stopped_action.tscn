@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+[ext_resource type="Script" path="gmorn_debug_menu_stopped_action.gd" id="1"]
+[node name="StoppedAction" type="VBoxContainer"]
+size_flags_horizontal = 3
+script = ExtResource("1")
+[node name="Action" type="Button" parent="."]
+layout_mode = 2
+text = "操作"
+[node name="Status" type="Label" parent="."]
+layout_mode = 2
+autowrap_mode = 3

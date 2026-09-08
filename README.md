@@ -279,4 +279,4 @@ menu.set_category("")
 固定UIは `gmorn_debug_menu_browser.tscn` と `gmorn_debug_menu_remote_row.tscn` で編集できる。
 `verify.sh` は幅240/320/520pxと階層移動を、`verify_remote.py` は階層内からの実際の操作送信を確認する。
 
-ドック最上部の「プロジェクトを開き直す」で、変更を保存してGodot Editorを再起動できる。実行中のゲームは停止する。セクションの開閉状態にかかわらず表示する。
+停止中のEditor操作は `gmorn_debug_menu_stopped_action.tscn` を利用する外部セクション（GMornGeneral、GMornSave）へ分離した。ドック直下には再起動ボタンを置かない。共通UIは再生中の無効化と実行直前の確認、必要な操作の二度押し確認を担当する。
