@@ -13,6 +13,7 @@ func _ready() -> void:
 	_process(0.0)
 
 func _process(_delta: float) -> void:
+	$Status.visible = not $Status.text.is_empty()
 	var playing := bool(is_playing.call())
 	$Action.disabled = playing
 	if playing or Time.get_ticks_msec() > _armed_until:
