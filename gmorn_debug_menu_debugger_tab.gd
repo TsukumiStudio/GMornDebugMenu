@@ -19,7 +19,8 @@ var _rows: Dictionary = {}
 const BROWSER := preload("gmorn_debug_menu_browser.tscn")
 const ROW := preload("gmorn_debug_menu_remote_row.tscn")
 var _items: Array = []
-var _path := ""
+const BRANCH := preload("gmorn_debug_menu_branch.tscn")
+var _expanded: Dictionary = {}
 var _browser: Control
 
 func setup(session: EditorDebuggerSession = null) -> void:
@@ -27,8 +28,6 @@ func setup(session: EditorDebuggerSession = null) -> void:
 	add_child(_browser)
 	_list = _browser.get_node("Scroll/Rows")
 	_status_label = _browser.get_node("Status")
-	_browser.get_node("Navigation/Path").meta_clicked.connect(func(path: Variant) -> void:
-		_navigate(String(path).uri_decode()))
 	set_session(session)
 
 ## 繋ぐセッションを差し替える。`null` なら未接続として表示する。
@@ -66,68 +65,62 @@ func handle_message(message: String, data: Array) -> void:
 func _rebuild(items: Array) -> void:
 	size_flags_vertical = Control.SIZE_FILL if items.is_empty() else Control.SIZE_EXPAND_FILL
 	_items = items
-	while not _path.is_empty() and not _items.any(func(item: Dictionary) -> bool:
-		var category := String(item.get("category", ""))
-		return category == _path or category.begins_with(_path + "/")):
-		_path = _parent_path(_path)
+	if items.is_empty():
+		_expanded.clear()
 	_render_items()
 
-func _parent_path(path: String) -> String:
-	var slash := path.rfind("/")
-	return path.substr(0, slash) if slash >= 0 else ""
-
-func _navigate(path: String) -> void:
-	_path = path
+func _toggle_folder(path: String) -> void:
+	_expanded[path] = not _expanded.get(path, false)
 	_render_items()
-	_browser.get_node("Scroll").scroll_vertical = 0
 
 func _render_items() -> void:
 	for child in _list.get_children():
 		_list.remove_child(child)
 		child.queue_free()
 	_rows.clear()
-	var crumbs := "[url=]Root[/url]"
-	var destination := ""
-	for part: String in _path.split("/", false):
-		destination = part if destination.is_empty() else destination + "/" + part
-		crumbs += " / [url=%s]%s[/url]" % [destination.uri_encode(), part.replace("[", "[lb]")]
-	_browser.get_node("Navigation/Path").text = crumbs
-	_browser.get_node("Navigation/Path").tooltip_text = "Root" + (" / " + _path if not _path.is_empty() else "")
+	_render_branch("", _list)
+
+func _render_branch(path: String, parent: VBoxContainer) -> void:
 	var folders: Dictionary = {}
 	for item: Dictionary in _items:
 		var category := String(item.get("category", ""))
-		if category == _path:
+		if category == path:
 			continue
-		if not _path.is_empty() and not category.begins_with(_path + "/"):
+		if not path.is_empty() and not category.begins_with(path + "/"):
 			continue
-		var relative := category if _path.is_empty() else category.substr(_path.length() + 1)
+		var relative := category if path.is_empty() else category.substr(path.length() + 1)
 		var folder := relative.get_slice("/", 0)
 		if folder.is_empty() or folders.has(folder):
 			continue
 		folders[folder] = true
+		var destination := folder if path.is_empty() else path + "/" + folder
+		var expanded: bool = _expanded.get(destination, false)
 		var row: Control = ROW.instantiate()
 		_prepare_row(row)
 		row.get_node("Name").hide()
 		var button: Button = row.get_node("Actions/Action")
-		button.text = "▸  " + folder
-		button.tooltip_text = folder + " を開く"
+		button.text = ("▾  " if expanded else "▸  ") + folder
+		button.tooltip_text = folder + (" を閉じる" if expanded else " を開く")
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		if has_theme_icon("Folder", "EditorIcons"):
 			button.icon = get_theme_icon("Folder", "EditorIcons")
 		button.show()
-		var folder_destination := folder if _path.is_empty() else _path + "/" + folder
-		button.pressed.connect(_navigate.bind(folder_destination))
-		_list.add_child(row)
+		button.pressed.connect(_toggle_folder.bind(destination))
+		parent.add_child(row)
+		if expanded:
+			var branch := BRANCH.instantiate()
+			parent.add_child(branch)
+			_render_branch(destination, branch.get_node("Rows"))
 	for item: Dictionary in _items:
-		if String(item.get("category", "")) == _path:
-			_add_row(item)
+		if String(item.get("category", "")) == path:
+			_add_row(item, parent)
 
 func _prepare_row(row: Control) -> void:
 	row.get_node("Value").hide()
 	for control in row.get_node("Actions").get_children():
 		control.hide()
 
-func _add_row(item: Dictionary) -> void:
+func _add_row(item: Dictionary, parent: VBoxContainer) -> void:
 	var id: int = item.get("id", -1)
 	var kind: String = item.get("kind", "")
 	var row: Control = ROW.instantiate()
@@ -187,7 +180,7 @@ func _add_row(item: Dictionary) -> void:
 			value_label.show()
 			value_label.text = str(item.get("value", ""))
 			_rows[id] = {"kind": kind, "control": value_label}
-	_list.add_child(row)
+	parent.add_child(row)
 
 func _update_value(id: int, value: Variant) -> void:
 	for item: Dictionary in _items:

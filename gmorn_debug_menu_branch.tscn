@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[node name="Branch" type="MarginContainer"]
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 16
+
+[node name="Rows" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12

@@ -273,11 +273,11 @@ menu.add_button("現在を0秒にする", reset_work_time)
 menu.set_category("")
 ```
 
-フォルダーを押すと中へ移動する。上部は `Root / 勤務 / 時刻` のパンくずで、Rootや親ジャンルを押すと戻れる。
+フォルダーを押すとその場で開閉し、子項目を16pxずつインデント表示する。複数のフォルダーを同時に開ける。パンくずは表示しない。
 操作ボタンには項目名を直接表示する。数値変更の「設定」ボタンは文字の幅を確保して表示する。
 項目名と操作欄は上下に配置し、横スクロールせずドック幅に収める。
 固定UIは `gmorn_debug_menu_browser.tscn` と `gmorn_debug_menu_remote_row.tscn` で編集できる。
-`verify.sh` は幅240/320/520pxと階層移動を、`verify_remote.py` は階層内からの実際の操作送信を確認する。
+`verify.sh` は幅240/320/520pxとツリーの開閉を、`verify_remote.py` は階層内からの実際の操作送信を確認する。
 
 停止中のEditor操作は `gmorn_debug_menu_stopped_action.tscn` を利用する外部セクション（GMornGeneral、GMornSave）へ分離した。ドック直下には再起動ボタンを置かない。共通UIは再生中の無効化と実行直前の確認、必要な操作の二度押し確認を担当する。
 

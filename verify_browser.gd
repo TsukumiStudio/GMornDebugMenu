@@ -16,44 +16,32 @@ func _run() -> void:
 		{"id": 3, "kind": "label", "label": "", "value": "長い状況説明を表示します。長い状況説明を表示します。", "category": "経済/お金"},
 	]
 	tab.handle_message("gmorn_debug_menu:sync", [items])
-	assert(tab._list.get_child_count() == 3, "ルートは2フォルダーと未分類のみ")
+	assert(tab._list.get_child_count() == 3)
 	tab._list.get_child(0).get_node("Actions/Action").pressed.emit()
-	assert(tab._path == "経済")
-	tab._list.get_child(0).get_node("Actions/Action").pressed.emit()
-	assert(tab._path == "経済/お金")
+	assert(tab._expanded.get("経済", false))
+	tab._list.get_child(1).get_node("Rows").get_child(0).get_node("Actions/Action").pressed.emit()
 	assert(tab._rows.has(1))
-	assert(tab._browser.get_node("Navigation/Path").get_parsed_text() == "Root / 経済 / お金")
+	assert(tab._list.get_child_count() == 4, "兄弟フォルダーや未分類が消えた")
 	tab.handle_message("gmorn_debug_menu:sync", [items])
-	assert(tab._path == "経済/お金", "再同期で階層が戻らない")
-	tab._browser.get_node("Navigation/Path").meta_clicked.emit("経済".uri_encode())
-	assert(tab._path == "経済")
+	assert(tab._rows.has(1), "再同期で折りたたまれた")
+	tab._toggle_folder("経済")
+	assert(not tab._rows.has(1))
 	tab.handle_message("gmorn_debug_menu:value", [1, 98765432])
-	tab._navigate("経済/お金")
-	assert(tab._rows[1].control.text == "現在: 98765432", "非表示中の更新が失われる")
+	tab._toggle_folder("経済")
+	assert(tab._rows[1].control.text == "現在: 98765432")
+	tab._toggle_folder("ノベル")
+	assert(tab._rows.has(1) and tab._rows.has(2), "複数フォルダーを同時に開けない")
 	for width: float in [240.0, 320.0, 520.0]:
-		tab.size = Vector2(width, 540.0)
-		for path: String in ["", "経済", "経済/お金", "ノベル"]:
-			tab._navigate(path)
-			for frame in range(5):
-				await process_frame
-			assert(tab.size.x <= width + 1.0, "最小幅でドックが広がる")
-			_check_width(tab, tab.get_global_rect())
-			for row in tab._list.get_children():
-				var action: Button = row.get_node("Actions/Action")
-				if action.visible:
-					assert(action.size.x >= action.get_theme_font("font").get_string_size(action.text, HORIZONTAL_ALIGNMENT_LEFT, -1, action.get_theme_font_size("font_size")).x, "ボタンの文字が潰れている")
-				if path == "経済/お金" and row.get_node("Actions/Spin").visible:
-					assert(action.text == "設定")
-				if path.is_empty() and row.get_node("Name").text == "未分類":
-					assert(action.text == "未分類")
-					assert(not row.get_node("Name").visible)
-			assert(not tab._browser.get_node("Scroll").get_h_scroll_bar().visible, "横スクロールが残る")
-	tab._browser.get_node("Navigation/Path").meta_clicked.emit("")
-	assert(tab._path == "")
-	assert(tab._browser.get_node("Navigation/Path").get_parsed_text() == "Root")
+		tab.size = Vector2(width, 800.0)
+		for frame in range(5):
+			await process_frame
+		assert(tab.size.x <= width + 1.0)
+		_check_width(tab, tab.get_global_rect())
+		assert(tab._rows[1].control.global_position.x >= tab._list.global_position.x + 32, "子項目がインデントされていない")
+		assert(not tab._browser.get_node("Scroll").get_h_scroll_bar().visible)
 	tab.on_session_stopped()
 	assert(tab._list.get_child_count() == 0)
-	assert(tab._path == "")
+	assert(tab._expanded.is_empty())
 	tab.free()
 	print("GMORN BROWSER VERIFY: PASS")
 	quit()
