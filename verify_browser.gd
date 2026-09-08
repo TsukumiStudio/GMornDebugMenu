@@ -22,9 +22,10 @@ func _run() -> void:
 	tab._list.get_child(0).get_node("Actions/Action").pressed.emit()
 	assert(tab._path == "経済/お金")
 	assert(tab._rows.has(1))
+	assert(tab._browser.get_node("Navigation/Path").get_parsed_text() == "Root / 経済 / お金")
 	tab.handle_message("gmorn_debug_menu:sync", [items])
 	assert(tab._path == "経済/お金", "再同期で階層が戻らない")
-	tab._browser.get_node("Navigation/Back").pressed.emit()
+	tab._browser.get_node("Navigation/Path").meta_clicked.emit("経済".uri_encode())
 	assert(tab._path == "経済")
 	tab.handle_message("gmorn_debug_menu:value", [1, 98765432])
 	tab._navigate("経済/お金")
@@ -37,10 +38,19 @@ func _run() -> void:
 				await process_frame
 			assert(tab.size.x <= width + 1.0, "最小幅でドックが広がる")
 			_check_width(tab, tab.get_global_rect())
+			for row in tab._list.get_children():
+				var action: Button = row.get_node("Actions/Action")
+				if action.visible:
+					assert(action.size.x >= action.get_theme_font("font").get_string_size(action.text, HORIZONTAL_ALIGNMENT_LEFT, -1, action.get_theme_font_size("font_size")).x, "ボタンの文字が潰れている")
+				if path == "経済/お金" and row.get_node("Actions/Spin").visible:
+					assert(action.text == "設定")
+				if path.is_empty() and row.get_node("Name").text == "未分類":
+					assert(action.text == "未分類")
+					assert(not row.get_node("Name").visible)
 			assert(not tab._browser.get_node("Scroll").get_h_scroll_bar().visible, "横スクロールが残る")
-	tab._browser.get_node("Navigation/Root").pressed.emit()
+	tab._browser.get_node("Navigation/Path").meta_clicked.emit("")
 	assert(tab._path == "")
-	assert(tab._browser.get_node("Navigation/Back").disabled)
+	assert(tab._browser.get_node("Navigation/Path").get_parsed_text() == "Root")
 	tab.on_session_stopped()
 	assert(tab._list.get_child_count() == 0)
 	assert(tab._path == "")

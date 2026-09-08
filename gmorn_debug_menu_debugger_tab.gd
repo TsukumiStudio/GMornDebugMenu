@@ -27,9 +27,8 @@ func setup(session: EditorDebuggerSession = null) -> void:
 	add_child(_browser)
 	_list = _browser.get_node("Scroll/Rows")
 	_status_label = _browser.get_node("Status")
-	_browser.get_node("Navigation/Root").pressed.connect(func() -> void: _navigate(""))
-	_browser.get_node("Navigation/Back").pressed.connect(func() -> void:
-		_navigate(_parent_path(_path)))
+	_browser.get_node("Navigation/Path").meta_clicked.connect(func(path: Variant) -> void:
+		_navigate(String(path).uri_decode()))
 	set_session(session)
 
 ## 繋ぐセッションを差し替える。`null` なら未接続として表示する。
@@ -87,10 +86,13 @@ func _render_items() -> void:
 		_list.remove_child(child)
 		child.queue_free()
 	_rows.clear()
-	_browser.get_node("Navigation/Path").text = "すべて" if _path.is_empty() else _path.replace("/", " › ")
-	_browser.get_node("Navigation/Path").tooltip_text = _path
-	_browser.get_node("Navigation/Root").disabled = _path.is_empty()
-	_browser.get_node("Navigation/Back").disabled = _path.is_empty()
+	var crumbs := "[url=]Root[/url]"
+	var destination := ""
+	for part: String in _path.split("/", false):
+		destination = part if destination.is_empty() else destination + "/" + part
+		crumbs += " / [url=%s]%s[/url]" % [destination.uri_encode(), part.replace("[", "[lb]")]
+	_browser.get_node("Navigation/Path").text = crumbs
+	_browser.get_node("Navigation/Path").tooltip_text = "Root" + (" / " + _path if not _path.is_empty() else "")
 	var folders: Dictionary = {}
 	for item: Dictionary in _items:
 		var category := String(item.get("category", ""))
@@ -113,8 +115,8 @@ func _render_items() -> void:
 		if has_theme_icon("Folder", "EditorIcons"):
 			button.icon = get_theme_icon("Folder", "EditorIcons")
 		button.show()
-		var destination := folder if _path.is_empty() else _path + "/" + folder
-		button.pressed.connect(_navigate.bind(destination))
+		var folder_destination := folder if _path.is_empty() else _path + "/" + folder
+		button.pressed.connect(_navigate.bind(folder_destination))
 		_list.add_child(row)
 	for item: Dictionary in _items:
 		if String(item.get("category", "")) == _path:
@@ -137,6 +139,9 @@ func _add_row(item: Dictionary) -> void:
 	var value_label: Label = row.get_node("Value")
 	match kind:
 		"button":
+			name_label.hide()
+			button.text = name_label.text
+			button.tooltip_text = name_label.text
 			button.show()
 			button.pressed.connect(func() -> void:
 				if _session != null:
@@ -169,7 +174,9 @@ func _add_row(item: Dictionary) -> void:
 			spin.step = float(item.get("step", 1.0))
 			spin.value = float(item.get("value", 0.0))
 			button.show()
-			button.text = "送る"
+			button.text = "設定"
+			button.clip_text = false
+			button.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
 			button.size_flags_horizontal = Control.SIZE_FILL
 			button.pressed.connect(func() -> void:
 				if _session != null:

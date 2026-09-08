@@ -7,19 +7,13 @@ size_flags_vertical = 3
 [node name="Navigation" type="HBoxContainer" parent="."]
 layout_mode = 2
 
-[node name="Root" type="Button" parent="Navigation"]
-layout_mode = 2
-text = "先頭"
-
-[node name="Back" type="Button" parent="Navigation"]
-layout_mode = 2
-text = "戻る"
-
-[node name="Path" type="Label" parent="Navigation"]
+[node name="Path" type="RichTextLabel" parent="Navigation"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "すべて"
-text_overrun_behavior = 3
+bbcode_enabled = true
+text = "[url=]Root[/url]"
+fit_content = true
+scroll_active = false
 
 [node name="Scroll" type="ScrollContainer" parent="."]
 layout_mode = 2

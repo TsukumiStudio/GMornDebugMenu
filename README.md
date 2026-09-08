@@ -273,7 +273,8 @@ menu.add_button("現在を0秒にする", reset_work_time)
 menu.set_category("")
 ```
 
-フォルダーを押すと中へ移動し、「戻る」で親へ、「先頭」でルートへ戻る。
+フォルダーを押すと中へ移動する。上部は `Root / 勤務 / 時刻` のパンくずで、Rootや親ジャンルを押すと戻れる。
+操作ボタンには項目名を直接表示する。数値変更の「設定」ボタンは文字の幅を確保して表示する。
 項目名と操作欄は上下に配置し、横スクロールせずドック幅に収める。
 固定UIは `gmorn_debug_menu_browser.tscn` と `gmorn_debug_menu_remote_row.tscn` で編集できる。
 `verify.sh` は幅240/320/520pxと階層移動を、`verify_remote.py` は階層内からの実際の操作送信を確認する。
