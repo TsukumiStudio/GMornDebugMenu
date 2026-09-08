@@ -1,0 +1,39 @@
+[gd_scene format=3]
+
+[node name="Row" type="VBoxContainer"]
+size_flags_horizontal = 3
+
+[node name="Name" type="Label" parent="."]
+layout_mode = 2
+text = "項目名"
+autowrap_mode = 3
+
+[node name="Value" type="Label" parent="."]
+layout_mode = 2
+text = "現在値"
+autowrap_mode = 3
+
+[node name="Actions" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="Spin" type="SpinBox" parent="Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -99999999.0
+max_value = 99999999.0
+
+[node name="Action" type="Button" parent="Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "実行"
+text_overrun_behavior = 3
+clip_text = true
+
+[node name="Toggle" type="CheckButton" parent="Actions"]
+layout_mode = 2
+
+[node name="Option" type="OptionButton" parent="Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+fit_to_longest_item = false
+text_overrun_behavior = 3

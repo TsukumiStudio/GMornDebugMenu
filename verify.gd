@@ -432,7 +432,7 @@ func _run() -> void:
 	tab.handle_message("gmorn_debug_menu:sync", [[
 		{"id": 2, "kind": "button", "label": "押しても落ちない"},
 	]])
-	var pressless_button: Button = tab._list.get_child(0).get_child(1)
+	var pressless_button: Button = tab._list.get_child(0).get_node("Actions/Action")
 	pressless_button.pressed.emit()
 	tab.queue_free()
 

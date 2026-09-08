@@ -1,0 +1,39 @@
+[gd_scene format=3]
+
+[node name="Browser" type="VBoxContainer"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Navigation" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="Root" type="Button" parent="Navigation"]
+layout_mode = 2
+text = "先頭"
+
+[node name="Back" type="Button" parent="Navigation"]
+layout_mode = 2
+text = "戻る"
+
+[node name="Path" type="Label" parent="Navigation"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "すべて"
+text_overrun_behavior = 3
+
+[node name="Scroll" type="ScrollContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Rows" type="VBoxContainer" parent="Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="Separator" type="HSeparator" parent="."]
+layout_mode = 2
+
+[node name="Status" type="Label" parent="."]
+layout_mode = 2
+autowrap_mode = 3

@@ -16,16 +16,20 @@ var _status_label: Label
 ## 監視値を映す行。`id (int) -> {kind, control}`。
 var _rows: Dictionary = {}
 
+const BROWSER := preload("gmorn_debug_menu_browser.tscn")
+const ROW := preload("gmorn_debug_menu_remote_row.tscn")
+var _items: Array = []
+var _path := ""
+var _browser: Control
+
 func setup(session: EditorDebuggerSession = null) -> void:
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_child(scroll)
-	_list = VBoxContainer.new()
-	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_list)
-	add_child(HSeparator.new())
-	_status_label = Label.new()
-	add_child(_status_label)
+	_browser = BROWSER.instantiate()
+	add_child(_browser)
+	_list = _browser.get_node("Scroll/Rows")
+	_status_label = _browser.get_node("Status")
+	_browser.get_node("Navigation/Root").pressed.connect(func() -> void: _navigate(""))
+	_browser.get_node("Navigation/Back").pressed.connect(func() -> void:
+		_navigate(_parent_path(_path)))
 	set_session(session)
 
 ## 繋ぐセッションを差し替える。`null` なら未接続として表示する。
@@ -62,74 +66,127 @@ func handle_message(message: String, data: Array) -> void:
 
 func _rebuild(items: Array) -> void:
 	size_flags_vertical = Control.SIZE_FILL if items.is_empty() else Control.SIZE_EXPAND_FILL
+	_items = items
+	while not _path.is_empty() and not _items.any(func(item: Dictionary) -> bool:
+		var category := String(item.get("category", ""))
+		return category == _path or category.begins_with(_path + "/")):
+		_path = _parent_path(_path)
+	_render_items()
+
+func _parent_path(path: String) -> String:
+	var slash := path.rfind("/")
+	return path.substr(0, slash) if slash >= 0 else ""
+
+func _navigate(path: String) -> void:
+	_path = path
+	_render_items()
+	_browser.get_node("Scroll").scroll_vertical = 0
+
+func _render_items() -> void:
 	for child in _list.get_children():
 		_list.remove_child(child)
 		child.queue_free()
 	_rows.clear()
-	for item: Dictionary in items:
-		_add_row(item)
+	_browser.get_node("Navigation/Path").text = "すべて" if _path.is_empty() else _path.replace("/", " › ")
+	_browser.get_node("Navigation/Path").tooltip_text = _path
+	_browser.get_node("Navigation/Root").disabled = _path.is_empty()
+	_browser.get_node("Navigation/Back").disabled = _path.is_empty()
+	var folders: Dictionary = {}
+	for item: Dictionary in _items:
+		var category := String(item.get("category", ""))
+		if category == _path:
+			continue
+		if not _path.is_empty() and not category.begins_with(_path + "/"):
+			continue
+		var relative := category if _path.is_empty() else category.substr(_path.length() + 1)
+		var folder := relative.get_slice("/", 0)
+		if folder.is_empty() or folders.has(folder):
+			continue
+		folders[folder] = true
+		var row: Control = ROW.instantiate()
+		_prepare_row(row)
+		row.get_node("Name").hide()
+		var button: Button = row.get_node("Actions/Action")
+		button.text = "▸  " + folder
+		button.tooltip_text = folder + " を開く"
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		if has_theme_icon("Folder", "EditorIcons"):
+			button.icon = get_theme_icon("Folder", "EditorIcons")
+		button.show()
+		var destination := folder if _path.is_empty() else _path + "/" + folder
+		button.pressed.connect(_navigate.bind(destination))
+		_list.add_child(row)
+	for item: Dictionary in _items:
+		if String(item.get("category", "")) == _path:
+			_add_row(item)
+
+func _prepare_row(row: Control) -> void:
+	row.get_node("Value").hide()
+	for control in row.get_node("Actions").get_children():
+		control.hide()
 
 func _add_row(item: Dictionary) -> void:
 	var id: int = item.get("id", -1)
 	var kind: String = item.get("kind", "")
-	var row := HBoxContainer.new()
-	var name_label := Label.new()
+	var row: Control = ROW.instantiate()
+	_prepare_row(row)
+	var name_label: Label = row.get_node("Name")
 	name_label.text = String(item.get("label", ""))
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_label)
+	name_label.visible = not name_label.text.is_empty()
+	var button: Button = row.get_node("Actions/Action")
+	var value_label: Label = row.get_node("Value")
 	match kind:
 		"button":
-			var button := Button.new()
-			button.text = "実行"
+			button.show()
 			button.pressed.connect(func() -> void:
 				if _session != null:
 					_session.send_message("gmorn_debug_menu:invoke", [id]))
-			row.add_child(button)
 		"toggle":
-			var check := CheckButton.new()
+			var check: CheckButton = row.get_node("Actions/Toggle")
+			check.show()
 			check.button_pressed = bool(item.get("value", false))
 			check.toggled.connect(func(value: bool) -> void:
 				if _session != null:
 					_session.send_message("gmorn_debug_menu:set_value", [id, value]))
-			row.add_child(check)
 			_rows[id] = {"kind": kind, "control": check}
 		"option":
-			var option := OptionButton.new()
+			var option: OptionButton = row.get_node("Actions/Option")
+			option.show()
 			for text: String in item.get("options", PackedStringArray()):
 				option.add_item(text)
 			option.selected = int(item.get("value", 0))
 			option.item_selected.connect(func(index: int) -> void:
 				if _session != null:
 					_session.send_message("gmorn_debug_menu:set_value", [id, index]))
-			row.add_child(option)
 			_rows[id] = {"kind": kind, "control": option}
 		"number", "slider":
-			var value_label := Label.new()
-			value_label.text = str(item.get("value", ""))
-			value_label.custom_minimum_size = Vector2(72.0, 0.0)
-			row.add_child(value_label)
-			var spin := SpinBox.new()
-			spin.min_value = -99999999.0
-			spin.max_value = 99999999.0
+			value_label.show()
+			value_label.text = "現在: " + str(item.get("value", ""))
+			var spin: SpinBox = row.get_node("Actions/Spin")
+			spin.show()
+			spin.min_value = float(item.get("minimum", -99999999.0))
+			spin.max_value = float(item.get("maximum", 99999999.0))
+			spin.step = float(item.get("step", 1.0))
 			spin.value = float(item.get("value", 0.0))
-			row.add_child(spin)
-			var apply := Button.new()
-			apply.text = "送る"
-			apply.pressed.connect(func() -> void:
+			button.show()
+			button.text = "送る"
+			button.size_flags_horizontal = Control.SIZE_FILL
+			button.pressed.connect(func() -> void:
 				if _session != null:
 					_session.send_message("gmorn_debug_menu:set_value", [id, spin.value]))
-			row.add_child(apply)
 			_rows[id] = {"kind": kind, "control": value_label}
 		"label":
-			var value_label := Label.new()
+			name_label.hide()
+			value_label.show()
 			value_label.text = str(item.get("value", ""))
-			row.add_child(value_label)
 			_rows[id] = {"kind": kind, "control": value_label}
-		_:
-			pass
 	_list.add_child(row)
 
 func _update_value(id: int, value: Variant) -> void:
+	for item: Dictionary in _items:
+		if int(item.get("id", -1)) == id:
+			item["value"] = value
+			break
 	if not _rows.has(id):
 		return
 	var info: Dictionary = _rows[id]
@@ -139,5 +196,7 @@ func _update_value(id: int, value: Variant) -> void:
 			(control as CheckButton).set_pressed_no_signal(bool(value))
 		"option":
 			(control as OptionButton).select(int(value))
-		"number", "slider", "label":
+		"number", "slider":
+			(control as Label).text = "現在: " + str(value)
+		"label":
 			(control as Label).text = str(value)

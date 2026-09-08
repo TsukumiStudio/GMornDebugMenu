@@ -260,3 +260,20 @@ section_dir="res://addons/my_project/debug_sections/"
 ## ライセンス
 
 Unlicense（パブリックドメイン）。
+
+## Editorでジャンル別に移動する
+
+`set_category("勤務/時刻")` を呼んだ後に登録した項目は、そのフォルダーへ入る。
+`/` で何段でも分類できる。`set_category("")` でルートに戻し、`clear_items()` でも分類をリセットする。
+ゲーム内の板は従来の登録順を保ち、Editorドックとデバッガタブだけで階層表示する。
+
+```gdscript
+menu.set_category("勤務/時刻")
+menu.add_button("現在を0秒にする", reset_work_time)
+menu.set_category("")
+```
+
+フォルダーを押すと中へ移動し、「戻る」で親へ、「先頭」でルートへ戻る。
+項目名と操作欄は上下に配置し、横スクロールせずドック幅に収める。
+固定UIは `gmorn_debug_menu_browser.tscn` と `gmorn_debug_menu_remote_row.tscn` で編集できる。
+`verify.sh` は幅240/320/520pxと階層移動を、`verify_remote.py` は階層内からの実際の操作送信を確認する。

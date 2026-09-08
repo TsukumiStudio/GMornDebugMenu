@@ -86,6 +86,7 @@ const BRIDGE_POLL_SECONDS := 0.3
 ## 偽のときも記録だけは続ける。検証がこの中身を直に確かめられるようにするため。
 var _bridge_items: Dictionary = {}
 var _bridge_next_id := 0
+var _category := ""
 ## 本当にエディタへ繋がっているか。繋がっていないときは記録だけして送らない。
 var _bridge_active := false
 
@@ -138,6 +139,10 @@ func set_status(message: String) -> void:
 		_status_label.text = message
 	if _bridge_active:
 		EngineDebugger.send_message("%s:status" % BRIDGE_NAME, [message])
+
+## これから登録する項目のEditor上の分類。スラッシュで子階層を指定する。
+func set_category(path: String) -> void:
+	_category = "/".join(path.split("/", false))
 
 # --- 項目を足す -------------------------------------------------------------
 
@@ -242,6 +247,7 @@ func add_slider(label: String, getter: Callable, setter: Callable,
 	var slider := _build_slider_row(label, float(getter.call()), setter, minimum, maximum, step)
 	_add_item(slider.get_parent())
 	_bridge_register("slider", label, {
+		"minimum": minimum, "maximum": maximum, "step": step,
 		"value_getter": func() -> float: return slider.value,
 		"set_value": func(value: float) -> void: slider.value = value,
 	})
@@ -298,6 +304,7 @@ func add_number(label: String, getter: Callable, setter: Callable,
 	spin.set_meta(NUMBER_GETTER_META, getter)
 	_add_item(row)
 	_bridge_register("number", label, {
+		"minimum": minimum, "maximum": maximum, "step": step,
 		"value_getter": getter,
 		"set_value": func(value: float) -> void:
 			setter.call(value)
@@ -394,6 +401,7 @@ func clear_items() -> void:
 		child.queue_free()
 	_bridge_items.clear()
 	_bridge_next_id = 0
+	_category = ""
 	if _bridge_active:
 		EngineDebugger.send_message("%s:clear" % BRIDGE_NAME, [])
 
@@ -434,6 +442,7 @@ func _bridge_register(kind: String, label: String, opts: Dictionary) -> void:
 	var entry := opts.duplicate()
 	entry["kind"] = kind
 	entry["label"] = label
+	entry["category"] = _category
 	_bridge_items[_bridge_next_id] = entry
 	_bridge_next_id += 1
 	_bridge_send_sync()
@@ -443,7 +452,10 @@ func _bridge_snapshot() -> Array:
 	var items: Array = []
 	for id: int in _bridge_items.keys():
 		var entry: Dictionary = _bridge_items[id]
-		var item := {"id": id, "kind": entry.kind, "label": entry.label}
+		var item := {"id": id, "kind": entry.kind, "label": entry.label, "category": entry.get("category", "")}
+		for key: String in ["minimum", "maximum", "step"]:
+			if entry.has(key):
+				item[key] = entry[key]
 		if entry.has("value_getter"):
 			item["value"] = (entry.value_getter as Callable).call()
 		if entry.has("options"):

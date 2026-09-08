@@ -27,3 +27,8 @@ config/features=PackedStringArray("4.7")
 PROJECT
 
 "$godot_bin" --headless --path "$work_dir" --script verify.gd
+
+"$godot_bin" --headless --path "$work_dir" --quit-after 180 --script addons/gmorn_debug_menu/verify_browser.gd > "$work_dir/browser.log" 2>&1
+cat "$work_dir/browser.log"
+grep -q 'GMORN BROWSER VERIFY: PASS' "$work_dir/browser.log"
+! grep -q 'SCRIPT ERROR:' "$work_dir/browser.log"

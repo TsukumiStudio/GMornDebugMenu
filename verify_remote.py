@@ -31,10 +31,12 @@ func _run() -> void:
 		var deadline := Time.get_ticks_msec() + 10000
 		while not FileAccess.file_exists("res://invoked") and Time.get_ticks_msec() < deadline:
 			if not invoked and tab._session != null and tab._session.is_active():
+				if not tab._items.is_empty() and tab._path != "検証/操作":
+					tab._navigate("検証/操作")
 				for row in tab._list.get_children():
-					if row.get_child(0).text == "remote_probe" and row.size.y > 0 and tab._list.get_parent().size.y >= row.size.y:
+					if row.get_node("Name").text == "remote_probe" and row.size.y > 0 and tab._list.get_parent().size.y >= row.size.y:
 						invoked = true
-						row.get_child(1).pressed.emit()
+						row.get_node("Actions/Action").pressed.emit()
 			await get_tree().process_frame
 		EditorInterface.stop_playing_scene()
 		if not FileAccess.file_exists("res://invoked"):
@@ -56,6 +58,7 @@ func _finish(result: String) -> void:
 CLIENT = '''extends Node
 
 func _ready() -> void:
+	get_node("/root/GMornDebugMenu").set_category("検証/操作")
 	get_node("/root/GMornDebugMenu").add_button("remote_probe", func() -> void:
 		FileAccess.open("res://invoked", FileAccess.WRITE).store_string("ok")
 	)
