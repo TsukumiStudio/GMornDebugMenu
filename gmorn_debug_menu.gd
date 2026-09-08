@@ -147,13 +147,26 @@ func set_category(path: String) -> void:
 # --- 項目を足す -------------------------------------------------------------
 
 ## 押すと何かする釦。
-func add_button(label: String, action: Callable) -> Button:
+func add_button(label: String, action: Callable, row_group := "") -> Button:
 	var button := Button.new()
 	button.text = label
 	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(func() -> void: action.call())
 	_add_item(button)
-	_bridge_register("button", label, {"invoke": func() -> void: button.pressed.emit()})
+	if not row_group.is_empty():
+		var group: HBoxContainer = null
+		for child in _items.get_children():
+			if child.get_meta("row_group", "") == _category + "/" + row_group:
+				group = child
+		if group == null:
+			group = preload("gmorn_debug_menu_button_group.tscn").instantiate()
+			group.set_meta("row_group", _category + "/" + row_group)
+			_items.add_child(group)
+		button.reparent(group)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.clip_text = true
+		button.tooltip_text = label
+	_bridge_register("button", label, {"invoke": func() -> void: button.pressed.emit(), "row_group": row_group})
 	return button
 
 ## 押し間違えたら困る釦。1度目で構え、決められた時間内にもう1度押すと通す。
@@ -453,7 +466,7 @@ func _bridge_snapshot() -> Array:
 	for id: int in _bridge_items.keys():
 		var entry: Dictionary = _bridge_items[id]
 		var item := {"id": id, "kind": entry.kind, "label": entry.label, "category": entry.get("category", "")}
-		for key: String in ["minimum", "maximum", "step"]:
+		for key: String in ["minimum", "maximum", "step", "row_group"]:
 			if entry.has(key):
 				item[key] = entry[key]
 		if entry.has("value_getter"):

@@ -111,16 +111,24 @@ func _render_branch(path: String, parent: VBoxContainer) -> void:
 			var branch := BRANCH.instantiate()
 			parent.add_child(branch)
 			_render_branch(destination, branch.get_node("Rows"))
+	var groups: Dictionary = {}
 	for item: Dictionary in _items:
 		if String(item.get("category", "")) == path:
-			_add_row(item, parent)
+			var group := String(item.get("row_group", ""))
+			if group.is_empty():
+				_add_row(item, parent)
+			else:
+				if not groups.has(group):
+					groups[group] = preload("gmorn_debug_menu_button_group.tscn").instantiate()
+					parent.add_child(groups[group])
+				_add_row(item, groups[group])
 
 func _prepare_row(row: Control) -> void:
 	row.get_node("Value").hide()
 	for control in row.get_node("Actions").get_children():
 		control.hide()
 
-func _add_row(item: Dictionary, parent: VBoxContainer) -> void:
+func _add_row(item: Dictionary, parent: Container) -> void:
 	var id: int = item.get("id", -1)
 	var kind: String = item.get("kind", "")
 	var row: Control = ROW.instantiate()

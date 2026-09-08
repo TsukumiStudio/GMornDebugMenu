@@ -31,12 +31,23 @@ func _run() -> void:
 	assert(tab._rows[1].control.text == "現在: 98765432")
 	tab._toggle_folder("ノベル")
 	assert(tab._rows.has(1) and tab._rows.has(2), "複数フォルダーを同時に開けない")
+	for index in 7:
+		items.append({"id": 10 + index, "kind": "button", "label": ["-10,000円", "-1,000円", "-100円", "=0円", "+100円", "+1,000円", "+10,000円"][index], "category": "経済/お金", "row_group": "money"})
+	tab.handle_message("gmorn_debug_menu:sync", [items])
 	for width: float in [240.0, 320.0, 520.0]:
 		tab.size = Vector2(width, 800.0)
 		for frame in range(5):
 			await process_frame
 		assert(tab.size.x <= width + 1.0)
 		_check_width(tab, tab.get_global_rect())
+		var groups := tab._list.find_children("ButtonGroup", "HBoxContainer", true, false)
+		assert(groups.size() == 1)
+		assert(groups[0].get_child_count() == 7)
+		var previous_x := -1.0
+		for row in groups[0].get_children():
+			assert(is_equal_approx(row.position.y, groups[0].get_child(0).position.y))
+			assert(row.position.x > previous_x)
+			previous_x = row.position.x
 		assert(tab._rows[1].control.global_position.x >= tab._list.global_position.x + 32, "子項目がインデントされていない")
 		assert(not tab._browser.get_node("Scroll").get_h_scroll_bar().visible)
 	tab.on_session_stopped()

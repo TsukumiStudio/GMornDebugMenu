@@ -282,3 +282,5 @@ menu.set_category("")
 停止中のEditor操作は `gmorn_debug_menu_stopped_action.tscn` を利用する外部セクション（GMornGeneral、GMornSave）へ分離した。ドック直下には再起動ボタンを置かない。共通UIは再生中の無効化と実行直前の確認、必要な操作の二度押し確認を担当する。
 
 セクションResourceの `hide_when_playing` を有効にすると、再生中は見出し・背景・内容をまとめて隠す。停止すると折りたたみ状態を維持して戻る。
+
+`add_button(label, action, row_group)` の第3引数に同じ名前を指定すると、同カテゴリのボタンを横一列にまとめる。ゲーム内とEditorの両方に反映する。
