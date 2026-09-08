@@ -23,6 +23,9 @@ extends Resource
 ## 被らなければ指定しなくてよい。
 @export var section_id: StringName = &""
 
+## ゲーム再生中は見出しごと隠す。停止すると折りたたみ状態を保って戻る。
+@export var hide_when_playing := false
+
 ## セクションの中身を作って返す。派生側で必ずオーバーライドする。
 func create_control() -> Control:
 	push_error("GMornDebugMenuSection.create_control() がオーバーライドされていない: %s" % resource_path)

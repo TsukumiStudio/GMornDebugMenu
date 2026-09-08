@@ -23,7 +23,7 @@ func setup() -> void:
 ## （**並び順は最後尾へ移る**。差し替えても元の位置を保ちたい場合は、
 ## 呼び出し側で `register_section()` を呼ぶ順を保つこと）。
 ## `control` は縦に並ぶ最後尾へ足す。見出しの釦は折りたたみも兼ねる。
-func register_section(id: StringName, title: String, control: Control) -> void:
+func register_section(id: StringName, title: String, control: Control, hide_when_playing := false) -> void:
 	if _sections.has(id):
 		unregister_section(id)
 	var panel: PanelContainer = SECTION_BOX.instantiate()
@@ -42,7 +42,7 @@ func register_section(id: StringName, title: String, control: Control) -> void:
 	container.add_child(control)
 	_list.add_child(panel)
 	header.button_pressed = true
-	_sections[id] = {"panel": panel, "container": container, "header": header, "control": control}
+	_sections[id] = {"panel": panel, "container": container, "header": header, "control": control, "hide_when_playing": hide_when_playing}
 
 ## `register_section()` で足したセクションを外す。渡された `control` 自体は消さず、
 ## 木から外すだけに留める。呼び出し側が作った物なので、後始末は呼び出し側に委ねる。
@@ -68,3 +68,8 @@ func section_ids() -> Array[StringName]:
 	for id: StringName in _sections.keys():
 		ids.append(id)
 	return ids
+
+## 再生状態だけを反映し、見出しの開閉状態は変更しない。
+func set_playing(playing: bool) -> void:
+	for section: Dictionary in _sections.values():
+		section.panel.visible = not (playing and section.hide_when_playing)

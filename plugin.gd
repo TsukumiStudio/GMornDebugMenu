@@ -65,7 +65,11 @@ func _register_tres_sections() -> void:
 		if control == null:
 			push_warning("セクションの中身が作られなかった: %s" % section.resource_path)
 			continue
-		_dock_content.register_section(SectionScannerScript.section_id(section), section.title, control)
+		_dock_content.register_section(SectionScannerScript.section_id(section), section.title, control, section.hide_when_playing)
+
+func _process(_delta: float) -> void:
+	if is_instance_valid(_dock_content):
+		_dock_content.set_playing(EditorInterface.is_playing_scene())
 
 func _exit_tree() -> void:
 	Engine.remove_meta(DOCK_META_KEY)
