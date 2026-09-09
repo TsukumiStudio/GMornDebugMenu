@@ -35,6 +35,7 @@ func _autoload_path() -> String:
 	return get_script().resource_path.get_base_dir().path_join("gmorn_debug_menu.gd")
 
 func _enter_tree() -> void:
+	_register_settings()
 	add_autoload_singleton(AUTOLOAD_NAME, _autoload_path())
 	_debugger_plugin = DebuggerPluginScript.new()
 	add_debugger_plugin(_debugger_plugin)
@@ -82,3 +83,40 @@ func _exit_tree() -> void:
 	_dock = null
 	_dock_content = null
 	_process_section = null
+
+## 設定の既定値と型をプロジェクト設定へ登録する。
+##
+## 登録が無いと「プロジェクト設定」画面で全項目に戻す印（回転の矢印）が付き、
+## どれを変えたのか分からない。パスは選択の窓から、列挙は一覧から選べるようにする。
+## 値は読む側（既定値）と同じにすること。読む側はここに依らず、無くても動く。
+func _register_settings() -> void:
+	# `section_dir` はドックの節（.tres）の置き場（gmorn_debug_menu_section_scanner.gd）。
+	for row in [
+		["enabled", true, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
+		["build_when_headless", false, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
+		["button_corner", "top_right", TYPE_STRING, PROPERTY_HINT_ENUM, "top_left,top_right,bottom_left,bottom_right"],
+		["button_width", 40.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "8,400,1"],
+		["button_height", 40.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "8,400,1"],
+		["button_margin_x", 12.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0,400,1"],
+		["button_margin_y", 12.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0,400,1"],
+		["button_alpha", 0.82, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0,1,0.01"],
+		["panel_width", 420.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "100,4000,1"],
+		["panel_height", 520.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "100,4000,1"],
+		["panel_color", Color(0.055, 0.035, 0.09, 0.97), TYPE_COLOR, PROPERTY_HINT_NONE, ""],
+		["panel_border_color", Color(1.0, 0.3, 0.72, 1.0), TYPE_COLOR, PROPERTY_HINT_NONE, ""],
+		["font_path", "", TYPE_STRING, PROPERTY_HINT_FILE, "*.ttf,*.otf,*.woff,*.woff2,*.fnt,*.tres"],
+		["font_size", 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,200,1"],
+		["volume_row", true, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
+		["volume_bus", "Master", TYPE_STRING, PROPERTY_HINT_NONE, ""],
+		["volume_max", 2.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "1,10,0.1"],
+		["volume_store", "user://gmorn_debug_menu.cfg", TYPE_STRING, PROPERTY_HINT_NONE, ""],
+		["section_dir", "res://assets/debug_sections/", TYPE_STRING, PROPERTY_HINT_DIR, ""],
+	]:
+		var key: String = "gmorn_debug_menu/" + String(row[0])
+		if not ProjectSettings.has_setting(key):
+			ProjectSettings.set_setting(key, row[1])
+		ProjectSettings.set_initial_value(key, row[1])
+		ProjectSettings.add_property_info({
+			"name": key, "type": row[2], "hint": row[3], "hint_string": row[4],
+		})
+		ProjectSettings.set_as_basic(key, true)
