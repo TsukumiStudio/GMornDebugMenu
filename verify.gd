@@ -378,6 +378,34 @@ func _run() -> void:
 		await process_frame
 	ProjectSettings.set_setting("gmorn_debug_menu/button_corner", "top_right")
 
+	# **中央に出す形**。板は画面の真ん中、後ろは幕で覆い、幕か Esc で閉じる。
+	ProjectSettings.set_setting("gmorn_debug_menu/modal", true)
+	var modal: CanvasLayer = script.new()
+	root.add_child(modal)
+	await process_frame
+	assert(modal._dim != null and not modal._dim.visible, "閉じている間に幕が出ている")
+	modal.open()
+	await process_frame
+	assert(modal._dim.visible, "開いたのに幕が出ない")
+	assert(modal._dim.get_index() < modal._button.get_index(), "幕が釦の上に敷かれ、釦で閉じられない")
+	var center: Vector2 = modal._panel.position + modal._panel.size * 0.5
+	assert(center.distance_to(view * 0.5) <= 1.0,
+		"板が中央にない: 中心 %s / 画面の中心 %s" % [center, view * 0.5])
+	var escape := InputEventAction.new()
+	escape.action = "ui_cancel"
+	escape.pressed = true
+	modal._unhandled_input(escape)
+	assert(not modal.is_open() and not modal._dim.visible, "Esc で閉じない")
+	modal.open()
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	modal._dim.gui_input.emit(click)
+	assert(not modal.is_open(), "幕を押しても閉じない")
+	modal.queue_free()
+	await process_frame
+	ProjectSettings.set_setting("gmorn_debug_menu/modal", false)
+
 	# **開いたまま画面を縮めても収まる。**窓を掴んで縮める、全画面から戻す、
 	# といった場面で置き直せているか。`size_changed` の繋ぎが外れると、
 	# 開きっぱなしの板だけが前の広さのまま取り残される。

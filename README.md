@@ -119,6 +119,8 @@ if menu != null:
 | 釦の濃さ | `gmorn_debug_menu/button_alpha` | — | `0.82` |
 | 板の大きさ（目安） | `gmorn_debug_menu/panel_width` / `panel_height` | — | `420` / `520` |
 | 板の色 | `gmorn_debug_menu/panel_color` / `panel_border_color` | — | 濃紫 / 桃 |
+| 中央に出して後ろを覆うか | `gmorn_debug_menu/modal` | — | `false`（釦の下へ出す） |
+| 覆いの色 | `gmorn_debug_menu/dim_color` | — | 黒・半透明（α 0.5） |
 | 書体 | `gmorn_debug_menu/font_path` | — | `gui/theme/custom_font` があればそれ |
 | 文字の大きさ | `gmorn_debug_menu/font_size` | — | `0`（既定のまま） |
 | 音量の行を出すか | `gmorn_debug_menu/volume_row` | — | `true` |

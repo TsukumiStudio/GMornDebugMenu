@@ -52,6 +52,8 @@ var settings: RefCounted
 
 var _button: Button
 var _panel: PanelContainer
+## 中央に出すとき（`modal`）に後ろを覆う幕。
+var _dim: ColorRect
 ## 項目を流す枠と、その中の縦並び。板を画面へ収めるときに中身の幅を測る。
 var _scroll: ScrollContainer
 var _stack: VBoxContainer
@@ -132,6 +134,12 @@ func close() -> void:
 
 func toggle() -> void:
 	_set_open(not is_open())
+
+## 中央に出したときは、覆いを押す以外に Esc でも閉じられるようにする。
+func _unhandled_input(event: InputEvent) -> void:
+	if settings != null and settings.modal and is_open() and event.is_action_pressed("ui_cancel"):
+		close()
+		get_viewport().set_input_as_handled()
 
 ## 板の下の方へ出す一行。何をしたかを返す場所。
 func set_status(message: String) -> void:
@@ -530,6 +538,8 @@ func _set_open(value: bool) -> void:
 	if not is_instance_valid(_panel) or _panel.visible == value:
 		return
 	_panel.visible = value
+	if is_instance_valid(_dim):
+		_dim.visible = value
 	if value:
 		refresh_numbers()
 		# **開くたびに置き直す。**行を足すのは作品側で、板を作った後に足される。
@@ -597,6 +607,18 @@ func _button_preset() -> int:
 			return Control.PRESET_TOP_RIGHT
 
 func _build_panel() -> void:
+	if settings.modal:
+		# 幕は釦より下へ敷く。開いたまま釦でも閉じられるように、釦は幕の上に残す。
+		_dim = ColorRect.new()
+		_dim.color = settings.dim_color
+		_dim.visible = false
+		_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+		_dim.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed:
+				close())
+		add_child(_dim)
+		move_child(_dim, 0)
 	_panel = PanelContainer.new()
 	_panel.visible = false
 	# 置き場は左上からの座標で決める（`_layout_panel()`）。隅ごとの寄せ方も
@@ -676,7 +698,8 @@ func _layout_panel() -> void:
 	var view := viewport.get_visible_rect().size
 	var margin: Vector2 = settings.button_margin
 	# 釦と重ならない高さ。板は釦の下（上の隅なら）か上（下の隅なら）へ出す。
-	var reserved: float = settings.button_size.y + PANEL_GAP
+	# 中央に出すときは釦を避けないので要らない。
+	var reserved: float = 0.0 if settings.modal else settings.button_size.y + PANEL_GAP
 	var available := Vector2(
 		maxf(view.x - margin.x * 2.0, 1.0),
 		maxf(view.y - margin.y * 2.0 - reserved, 1.0))
@@ -693,6 +716,8 @@ func _layout_panel() -> void:
 	var position := Vector2(
 		margin.x if to_left else view.x - margin.x - size.x,
 		margin.y + reserved if to_top else view.y - margin.y - reserved - size.y)
+	if settings.modal:
+		position = ((view - size) * 0.5).floor()
 	# 端で丸める。指定した余白が画面より大きいときでも、外へは出さない。
 	position.x = clampf(position.x, 0.0, maxf(view.x - size.x, 0.0))
 	position.y = clampf(position.y, 0.0, maxf(view.y - size.y, 0.0))

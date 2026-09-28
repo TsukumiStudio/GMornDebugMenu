@@ -107,6 +107,8 @@ func _register_settings() -> void:
 		["panel_height", 520.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "100,4000,1"],
 		["panel_color", Color(0.055, 0.035, 0.09, 0.97), TYPE_COLOR, PROPERTY_HINT_NONE, ""],
 		["panel_border_color", Color(1.0, 0.3, 0.72, 1.0), TYPE_COLOR, PROPERTY_HINT_NONE, ""],
+		["modal", false, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
+		["dim_color", Color(0.0, 0.0, 0.0, 0.5), TYPE_COLOR, PROPERTY_HINT_NONE, ""],
 		["font_path", "", TYPE_STRING, PROPERTY_HINT_FILE, "*.ttf,*.otf,*.woff,*.woff2,*.fnt,*.tres"],
 		["font_size", 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,200,1"],
 		["volume_row", true, TYPE_BOOL, PROPERTY_HINT_NONE, ""],

@@ -31,6 +31,14 @@ var panel_size := Vector2(420.0, 520.0)
 var panel_color := Color(0.055, 0.035, 0.09, 0.97)
 ## 板の縁の色。
 var panel_border_color := Color(1.0, 0.3, 0.72, 1.0)
+## 板を画面の中央へ出し、後ろの画面を暗く覆うか。
+##
+## 隅の釦の下へ出す既定の置き方は、遊びの画面を見ながら触るのに向く。
+## 一方で板が小さく端に寄るので、項目の多い作品では読みにくい。覆うほうは
+## 開いている間は後ろを触れなくし、覆いを押すか Esc で閉じる。
+var modal := false
+## 覆いの色。透けるように α を下げる。
+var dim_color := Color(0.0, 0.0, 0.0, 0.5)
 ## 板で使う書体（`res://` から始まる置き場）。空なら既定のまま。
 ##
 ## 指定しないと、Godotが用意している既定の書体で描く。この書体は日本語の
@@ -75,6 +83,8 @@ func load_from_environment() -> void:
 		float(_setting("panel_height", panel_size.y)))
 	panel_color = _color("panel_color", panel_color)
 	panel_border_color = _color("panel_border_color", panel_border_color)
+	modal = bool(_setting("modal", modal))
+	dim_color = _color("dim_color", dim_color)
 	font_path = String(_setting("font_path", font_path))
 	font_size = int(_setting("font_size", font_size))
 	volume_row = bool(_setting("volume_row", volume_row))
