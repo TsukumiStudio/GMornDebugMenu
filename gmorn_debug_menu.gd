@@ -29,6 +29,11 @@ const SETTINGS := preload("gmorn_debug_menu_settings.gd")
 ## 釦と板の間（画素）。
 const PANEL_GAP := 8.0
 
+## 板を描く層。作品のHUDや遷移の幕（数十〜数百の層）より上へ出す。
+## 既定の 1 のままだと、板を大きくしたときにHUDが板の上へ重なり、中央に出したときの
+## 覆いもHUDだけ覆えなかった。
+const DRAW_LAYER := 1000
+
 ## 分類の折りたたみの中身を右へ寄せる幅（画素）。
 const CATEGORY_INDENT := 16
 
@@ -100,6 +105,7 @@ var _category_folded: Dictionary = {}
 var _bridge_active := false
 
 func _ready() -> void:
+	layer = DRAW_LAYER
 	settings = SETTINGS.new()
 	settings.load_from_environment()
 	# 覚えてある倍率を先に戻す。板を作る前に読むので、つまみが最初から
