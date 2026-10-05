@@ -29,6 +29,9 @@ const SETTINGS := preload("gmorn_debug_menu_settings.gd")
 ## 釦と板の間（画素）。
 const PANEL_GAP := 8.0
 
+## 分類の折りたたみの中身を右へ寄せる幅（画素）。
+const CATEGORY_INDENT := 16
+
 ## しまう先の節と鍵。他の値を並べて置けるように節を切ってある。
 const STORE_SECTION := "gmorn_debug_menu"
 const STORE_VOLUME_KEY := "volume_multiplier"
@@ -89,6 +92,10 @@ const BRIDGE_POLL_SECONDS := 0.3
 var _bridge_items: Dictionary = {}
 var _bridge_next_id := 0
 var _category := ""
+## 分類ごとの折りたたみ。`"親/子" -> 中身の VBoxContainer`。`clear_items()` で空になる。
+var _category_boxes: Dictionary = {}
+## 分類ごとの開閉。場面が替わって項目を足し直しても、開いていた分類は開いたまま出す。
+var _category_folded: Dictionary = {}
 ## 本当にエディタへ繋がっているか。繋がっていないときは記録だけして送らない。
 var _bridge_active := false
 
@@ -163,13 +170,14 @@ func add_button(label: String, action: Callable, row_group := "") -> Button:
 	_add_item(button)
 	if not row_group.is_empty():
 		var group: HBoxContainer = null
-		for child in _items.get_children():
+		var parent := _category_box(_category)
+		for child in parent.get_children():
 			if child.get_meta("row_group", "") == _category + "/" + row_group:
 				group = child
 		if group == null:
 			group = preload("gmorn_debug_menu_button_group.tscn").instantiate()
 			group.set_meta("row_group", _category + "/" + row_group)
-			_items.add_child(group)
+			parent.add_child(group)
 		button.reparent(group)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.clip_text = true
@@ -417,12 +425,17 @@ func clear_items() -> void:
 	# 構えている釦の待ちを無効にする。世代を進めておけば、待ちが明けても
 	# 消えた釦へ書き込まない。
 	_confirm_generation += 1
+	# 開閉を覚えてから消す。場面が替わって足し直しても、開いていた分類は開いたまま出す。
+	for path: String in _category_boxes:
+		var fold := (_category_boxes[path] as Node).get_parent().get_parent() as FoldableContainer
+		_category_folded[path] = fold.folded
 	for child in _items.get_children():
 		_items.remove_child(child)
 		child.queue_free()
 	_bridge_items.clear()
 	_bridge_next_id = 0
 	_category = ""
+	_category_boxes.clear()
 	if _bridge_active:
 		EngineDebugger.send_message("%s:clear" % BRIDGE_NAME, [])
 
@@ -434,8 +447,37 @@ func _add_item(control: Control) -> void:
 		return
 	# 板が無い実行でも同じように受け取る。呼ぶ側に「板があるか」を書かせない。
 	# 置き場ごと隠してあるので、出ることはない。
-	_items.add_child(control)
+	_category_box(_category).add_child(control)
 	_disable_beat_scale(control)
+
+## `set_category()` の分類ごとに、折りたたみの中身を返す（無ければ作る）。
+##
+## 項目が増えると、平たく並べた板では目当ての行を探せない。分類を見出しにして
+## 畳めるようにし、`"勤務/ランク"` のような子階層は入れ子の折りたたみにする。
+## 分類が空のときは折りたたまずに `_items` へ直に置く。
+func _category_box(path: String) -> VBoxContainer:
+	if path.is_empty():
+		return _items
+	if _category_boxes.has(path):
+		return _category_boxes[path]
+	var parts := path.split("/")
+	var parent := _category_box("/".join(parts.slice(0, parts.size() - 1)))
+	var fold := FoldableContainer.new()
+	fold.title = parts[parts.size() - 1]
+	fold.focus_mode = Control.FOCUS_NONE
+	# 既定は畳んで出す。開くと分類の一覧が長くなり、構造が見えなくなる。
+	fold.folded = _category_folded.get(path, true)
+	# 中身を少し右へ寄せる。寄せないと、入れ子の見出しが親の見出しと同じ列に並び、
+	# どこまでが同じ分類かが見えない。
+	var indent := MarginContainer.new()
+	indent.add_theme_constant_override("margin_left", CATEGORY_INDENT)
+	fold.add_child(indent)
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	indent.add_child(box)
+	parent.add_child(fold)
+	_category_boxes[path] = box
+	return box
 
 # --- エディタのデバッガパネルとの橋渡し --------------------------------------
 

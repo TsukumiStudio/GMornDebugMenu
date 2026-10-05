@@ -190,6 +190,33 @@ func _run() -> void:
 	assert(not _is_under(menu._status_label, scrolls[0]), "状況の一行が流れる側に入っている")
 	assert(_is_under(menu._builtins, scrolls[0]), "部品が持つ行が流れる側に入っていない")
 
+	# 分類ごとに折りたたみが立ち、子階層は親の中へ入れ子になる。
+	menu.clear_items()
+	menu.set_category("勤務/ランク")
+	var ranked: Button = menu.add_button("ランク釦", func() -> void: pass)
+	menu.set_category("勤務")
+	var worked: Label = menu.add_label("勤務の行")
+	menu.set_category("")
+	var loose: Label = menu.add_label("分類なし")
+	var folds: Array = menu._items.find_children("*", "FoldableContainer", true, false)
+	assert(folds.size() == 2, "折りたたみが %d 個" % folds.size())
+	var work_fold: FoldableContainer = folds.filter(func(f: FoldableContainer) -> bool: return f.title == "勤務")[0]
+	var rank_fold: FoldableContainer = folds.filter(func(f: FoldableContainer) -> bool: return f.title == "ランク")[0]
+	assert(_is_under(rank_fold, work_fold), "子の分類が親の折りたたみに入っていない")
+	assert(_is_under(ranked, rank_fold) and _is_under(worked, work_fold) and not _is_under(worked, rank_fold),
+		"項目が自分の分類の折りたたみに入っていない")
+	assert(loose.get_parent() == menu._items, "分類なしの項目が折りたたみに入った")
+	assert(work_fold.folded, "折りたたみが既定で開いている")
+	# 開いた分類は、場面が替わって足し直しても開いたまま出す。
+	work_fold.folded = false
+	menu.clear_items()
+	menu.set_category("勤務")
+	menu.add_label("足し直し")
+	menu.set_category("")
+	var again: FoldableContainer = menu._items.find_children("*", "FoldableContainer", true, false)[0]
+	assert(not again.folded, "開いていた分類が足し直しで畳まれた")
+	menu.clear_items()
+
 	# 書体を指定していなければテーマを作らない。既定のままにする。
 	assert(menu._ui_theme() == null, "指定していないのにテーマを作った")
 
