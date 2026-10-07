@@ -67,6 +67,7 @@ func _ready() -> void:
 | `add_label(text)` | 見るだけの行 | `Label` |
 | `add_slider(label, getter, setter, min, max, step)` | つまみで動かす行。動かしている最中に渡る | `HSlider` |
 | `add_separator()` | 区切り線 | `HSeparator` |
+| `add_control(control)` | 作品が組んだ部品を1つの項目として置く（Editorのデバッガーには写さない） | 渡した `Control` |
 
 `add_slider()` は「決定」を待たない。音量のように、動かしながら結果を確かめたいものは、決定を挟むと合わせられない。決めてから渡したいものは `add_number()` を使う。
 

@@ -196,6 +196,8 @@ func _run() -> void:
 	var ranked: Button = menu.add_button("ランク釦", func() -> void: pass)
 	menu.set_category("勤務")
 	var worked: Label = menu.add_label("勤務の行")
+	var composed := HBoxContainer.new()
+	assert(menu.add_control(composed) == composed, "add_control が渡した部品を返さない")
 	menu.set_category("")
 	var loose: Label = menu.add_label("分類なし")
 	var folds: Array = menu._items.find_children("*", "FoldableContainer", true, false)
@@ -205,6 +207,7 @@ func _run() -> void:
 	assert(_is_under(rank_fold, work_fold), "子の分類が親の折りたたみに入っていない")
 	assert(_is_under(ranked, rank_fold) and _is_under(worked, work_fold) and not _is_under(worked, rank_fold),
 		"項目が自分の分類の折りたたみに入っていない")
+	assert(_is_under(composed, work_fold), "add_control の部品が分類の折りたたみに入っていない")
 	assert(loose.get_parent() == menu._items, "分類なしの項目が折りたたみに入った")
 	assert(work_fold.folded, "折りたたみが既定で開いている")
 	# 開いた分類は、場面が替わって足し直しても開いたまま出す。

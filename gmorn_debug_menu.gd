@@ -415,6 +415,13 @@ func add_label(text := "") -> Label:
 	_bridge_register("label", text, {"value_getter": func() -> String: return label.text})
 	return label
 
+## 作品が組んだ部品をそのまま1つの項目として置く。釦や数の行では表せない並び
+## （名前の入力欄と釦を横に並べる、一覧を出す等）を、部品ごと持ち込むための口。
+## Editorのデバッガーへは写さない（部品の中身はこの板の外からは分からないため）。
+func add_control(control: Control) -> Control:
+	_add_item(control)
+	return control
+
 ## 区切り線。項目が増えてきたときに固まりを分ける。
 func add_separator() -> HSeparator:
 	var separator := HSeparator.new()
