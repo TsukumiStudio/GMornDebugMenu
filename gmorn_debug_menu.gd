@@ -185,8 +185,6 @@ func add_button(label: String, action: Callable, row_group := "") -> Button:
 			group.set_meta("row_group", _category + "/" + row_group)
 			parent.add_child(group)
 		button.reparent(group)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.clip_text = true
 		button.tooltip_text = label
 	_bridge_register("button", label, {"invoke": func() -> void: button.pressed.emit(), "row_group": row_group})
 	return button
@@ -458,6 +456,9 @@ func _add_item(control: Control) -> void:
 	if not is_instance_valid(_items):
 		control.queue_free()
 		return
+	# 釦は文字の幅で左へ寄せる。板いっぱいに伸ばすと、どこまでが釦か分からない。
+	if control is Button and not control is CheckButton:
+		control.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	# 板が無い実行でも同じように受け取る。呼ぶ側に「板があるか」を書かせない。
 	# 置き場ごと隠してあるので、出ることはない。
 	_category_box(_category).add_child(control)
@@ -808,11 +809,11 @@ func _build_volume_row() -> void:
 	_builtins.add_child(slider.get_parent())
 	_builtins.add_child(HSeparator.new())
 
+## 板と隅の釦のテーマ。作品のテーマ（`gui/theme/custom`）は飾りのためのもので、道具の板には
+## 合わないので借りない。釦・入力欄・文字の色をここで決め、どの作品でも同じ見た目にする。
 func _ui_theme() -> Theme:
 	if _theme != null:
 		return _theme
-	if settings.font_path.is_empty() and settings.font_size <= 0:
-		return null
 	_theme = Theme.new()
 	if not settings.font_path.is_empty():
 		var font := load(settings.font_path) as Font
@@ -822,7 +823,45 @@ func _ui_theme() -> Theme:
 			push_warning("書体を読めなかったため既定のままにする: %s" % settings.font_path)
 	if settings.font_size > 0:
 		_theme.default_font_size = settings.font_size
+	_apply_control_styles(_theme)
 	return _theme
+
+## 釦は「押せる物」と分かる形にする：濃い灰の地に灰の縁。触れると明るく、押すと青、
+## 押せないときは文字ごと沈める。入力欄は地を一段暗くして釦と見分ける。
+func _apply_control_styles(theme: Theme) -> void:
+	var text := Color(0.92, 0.93, 0.95)
+	var muted := Color(0.5, 0.52, 0.56)
+	for type: String in ["Button", "OptionButton", "MenuButton"]:
+		theme.set_stylebox("normal", type, _box(Color(0.17, 0.185, 0.21), Color(0.42, 0.45, 0.5)))
+		theme.set_stylebox("hover", type, _box(Color(0.23, 0.25, 0.29), Color(0.62, 0.66, 0.73)))
+		theme.set_stylebox("pressed", type, _box(Color(0.16, 0.38, 0.72), Color(0.38, 0.6, 0.95)))
+		theme.set_stylebox("hover_pressed", type, _box(Color(0.19, 0.43, 0.8), Color(0.45, 0.66, 1.0)))
+		theme.set_stylebox("disabled", type, _box(Color(0.12, 0.125, 0.14), Color(0.22, 0.235, 0.26)))
+		theme.set_stylebox("focus", type, StyleBoxEmpty.new())
+		theme.set_color("font_color", type, text)
+		theme.set_color("font_hover_color", type, Color.WHITE)
+		theme.set_color("font_pressed_color", type, Color.WHITE)
+		theme.set_color("font_hover_pressed_color", type, Color.WHITE)
+		theme.set_color("font_disabled_color", type, muted)
+	for type: String in ["LineEdit", "SpinBox"]:
+		theme.set_stylebox("normal", type, _box(Color(0.045, 0.05, 0.06), Color(0.42, 0.45, 0.5)))
+		theme.set_stylebox("focus", type, _box(Color(0.045, 0.05, 0.06), Color(0.38, 0.6, 0.95)))
+		theme.set_color("font_color", type, text)
+		theme.set_color("font_placeholder_color", type, muted)
+	theme.set_color("font_color", "Label", text)
+	theme.set_color("font_color", "CheckButton", text)
+
+func _box(fill: Color, border: Color) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = fill
+	box.border_color = border
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(3)
+	box.content_margin_left = 12
+	box.content_margin_right = 12
+	box.content_margin_top = 4
+	box.content_margin_bottom = 4
+	return box
 
 func _panel_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()

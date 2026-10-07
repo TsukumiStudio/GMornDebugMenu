@@ -196,6 +196,11 @@ func _run() -> void:
 	var ranked: Button = menu.add_button("ランク釦", func() -> void: pass)
 	menu.set_category("勤務")
 	var worked: Label = menu.add_label("勤務の行")
+	# 釦は文字の幅で左へ寄せ、板いっぱいに伸ばさない（横に並べた釦も同じ）。
+	var lone: Button = menu.add_button("ひとつ", func() -> void: pass)
+	var paired: Button = menu.add_button("並び", func() -> void: pass, "並べる")
+	assert(lone.size_flags_horizontal == Control.SIZE_SHRINK_BEGIN and paired.size_flags_horizontal == Control.SIZE_SHRINK_BEGIN,
+		"釦を左右に伸ばしている")
 	var composed := HBoxContainer.new()
 	assert(menu.add_control(composed) == composed, "add_control が渡した部品を返さない")
 	menu.set_category("")
@@ -220,8 +225,10 @@ func _run() -> void:
 	assert(not again.folded, "開いていた分類が足し直しで畳まれた")
 	menu.clear_items()
 
-	# 書体を指定していなければテーマを作らない。既定のままにする。
-	assert(menu._ui_theme() == null, "指定していないのにテーマを作った")
+	# 書体を指定していなくても、釦の見た目は板が決める（作品の飾りのテーマを借りない）。書体は既定のまま。
+	assert(menu._ui_theme() != null and menu._ui_theme().default_font == null, "指定していないのに書体を変えた")
+	assert(menu._ui_theme().get_stylebox("normal", "Button") is StyleBoxFlat
+		and menu._ui_theme().get_stylebox("pressed", "Button") is StyleBoxFlat, "釦に板の見た目が無い")
 
 	# 大きさだけでも指定すればテーマができ、板と釦の両方へ付く。
 	ProjectSettings.set_setting("gmorn_debug_menu/font_size", 25)

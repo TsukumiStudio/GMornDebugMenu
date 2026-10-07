@@ -153,6 +153,8 @@ font_size=25
 
 `gui/theme/custom_font` をプロジェクト全体で指定してあれば、何も書かなくてもそれを借りる。
 
+釦・入力欄・文字の色は、作品のテーマ（`gui/theme/custom`）を借りずに板が決める。飾りのためのテーマでは、道具の釦が釦に見えないことがあるため。釦は濃い灰の地に灰の縁、触れると明るく、押すと青、押せないときは文字ごと沈める。釦は文字の幅で左へ寄せ、板いっぱいに伸ばさない（`add_button()` の横並びも同じ）。
+
 同じ隅に別の釦（[GMornIssueMaker](https://github.com/TsukumiStudio/GMornIssueMaker) の不具合報告など）があるときは、`button_margin_y` を縦にずらして重なりを避ける。
 
 ### 7. リモート操作の仕組み
