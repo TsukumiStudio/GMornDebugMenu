@@ -235,6 +235,21 @@ func _run() -> void:
 	# 板と釦で同じものを使い回す。作り直すと、書体が二重に読み込まれる。
 	assert(themed._panel.theme == themed._button.theme, "テーマを作り直している")
 	ProjectSettings.set_setting("gmorn_debug_menu/font_size", 0)
+	# 縁の太さと角の丸みを設定で変えられる。既定は太さ3・丸み16。
+	var default_style := themed._panel.get_theme_stylebox("panel") as StyleBoxFlat
+	assert(default_style.border_width_left == 3 and default_style.corner_radius_top_left == 16, "縁と角の既定が変わった")
+	themed.queue_free()
+	ProjectSettings.set_setting("gmorn_debug_menu/panel_border_width", 0)
+	ProjectSettings.set_setting("gmorn_debug_menu/panel_corner_radius", 2)
+	var flat: CanvasLayer = script.new()
+	root.add_child(flat)
+	await process_frame
+	var flat_style := flat._panel.get_theme_stylebox("panel") as StyleBoxFlat
+	assert(flat_style.border_width_left == 0 and flat_style.corner_radius_top_left == 2,
+		"縁の太さか角の丸みが設定どおりでない")
+	flat.queue_free()
+	ProjectSettings.set_setting("gmorn_debug_menu/panel_border_width", 3)
+	ProjectSettings.set_setting("gmorn_debug_menu/panel_corner_radius", 16)
 
 	# 読めない置き場を指しても落ちない。既定のままにするだけ。
 	ProjectSettings.set_setting("gmorn_debug_menu/font_path", "res://無い書体.otf")

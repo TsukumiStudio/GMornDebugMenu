@@ -31,6 +31,10 @@ var panel_size := Vector2(420.0, 520.0)
 var panel_color := Color(0.055, 0.035, 0.09, 0.97)
 ## 板の縁の色。
 var panel_border_color := Color(1.0, 0.3, 0.72, 1.0)
+## 板の縁の太さ（画素）。0 で縁を描かない。
+var panel_border_width := 3
+## 板の角の丸み（画素）。
+var panel_corner_radius := 16
 ## 板を画面の中央へ出し、後ろの画面を暗く覆うか。
 ##
 ## 隅の釦の下へ出す既定の置き方は、遊びの画面を見ながら触るのに向く。
@@ -83,6 +87,8 @@ func load_from_environment() -> void:
 		float(_setting("panel_height", panel_size.y)))
 	panel_color = _color("panel_color", panel_color)
 	panel_border_color = _color("panel_border_color", panel_border_color)
+	panel_border_width = int(_setting("panel_border_width", panel_border_width))
+	panel_corner_radius = int(_setting("panel_corner_radius", panel_corner_radius))
 	modal = bool(_setting("modal", modal))
 	dim_color = _color("dim_color", dim_color)
 	font_path = String(_setting("font_path", font_path))
