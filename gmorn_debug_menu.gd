@@ -328,8 +328,16 @@ func add_number(label: String, getter: Callable, setter: Callable,
 	apply.text = "決定"
 	apply.focus_mode = Control.FOCUS_NONE
 	apply.pressed.connect(func() -> void:
-		setter.call(spin.value)
-		set_status("%s を %s にしました" % [label, spin.value]))
+		# 決定釦がフォーカスを受けないため、入力中のLineEditの文字列が
+		# SpinBox.valueへ反映されないまま押されることがある。古いvalueを
+		# 読むと、表示値ではなく入力前の値をsetterへ渡してしまう。
+		var value: float = spin.value
+		var line_edit: LineEdit = spin.get_line_edit()
+		var text: String = line_edit.text.strip_edges()
+		if text.is_valid_float():
+			value = clampf(float(text), spin.min_value, spin.max_value)
+		setter.call(value)
+		set_status("%s を %s にしました" % [label, value]))
 	row.add_child(apply)
 	# 読み直し方を行そのものに持たせる。`panel_toggled` へ繋ぐと、`clear_items()`
 	# で行を捨てた後も繋がりだけが残り、次に板を開いたときに解放済みの入力欄へ
