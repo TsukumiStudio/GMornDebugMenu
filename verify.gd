@@ -1,14 +1,10 @@
 extends SceneTree
 
-## 項目の足し方と、二度押しの構えを確かめる。
-##
-## 画面の無い実行では既定で板を作らない。作らない側でも、項目を足す呼び出しが
-## そのまま通ることが要る。呼ぶ側に「板があるか」を書かせないためである。
-## ここでは両方を見る。
+## 項目の足し方・二度押し・橋渡し・配置・音量・ドックのセクションを保証する。
+## 板を作らない側でも、項目を足す呼び出しが通ることを見る。
 
 const MENU_PATH := "res://addons/gmorn_debug_menu/gmorn_debug_menu.gd"
 
-## `node` が `ancestor` の下にあるか。
 static func _is_under(node: Node, ancestor: Node) -> bool:
 	var walk := node
 	while walk != null:
@@ -17,7 +13,7 @@ static func _is_under(node: Node, ancestor: Node) -> bool:
 		walk = walk.get_parent()
 	return false
 
-## 倍率をしまう置き場を消す。走をまたいで残ると、次の走が前の値を読む。
+## `user://` は作品名から決まり走をまたいで残るので、倍率の置き場を消す。
 static func _forget_stored_volume() -> void:
 	for path: String in ["user://gmorn_debug_menu.cfg", "user://verify_volume.cfg"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
@@ -27,10 +23,6 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var script: GDScript = load(MENU_PATH)
-	# **前の走で書いたものを消してから始める。**倍率をしまう既定の置き場
-	# （`user://gmorn_debug_menu.cfg`）は走をまたいで残るので、この検証が
-	# 途中で書いた 0.5 を次の走が読み、「はじめから等倍でない」で落ちていた。
-	# 一時の置き場に作るのはプロジェクトだけで、`user://` は作品名から決まる。
 	_forget_stored_volume()
 
 	# 板を作らない側。項目を足しても落ちない。
@@ -45,10 +37,7 @@ func _run() -> void:
 	quiet.toggle()
 	assert(not quiet.is_open(), "板が無いのに開いた")
 
-	# --- エディタのデバッガパネルとの橋渡し ------------------------------------
-	#
-	# `EngineDebugger` に繋がっていない（ここでの実行はそう）ときも、足した
-	# 項目の記録は続く。`_bridge_*` を直に呼んで、繋がったときの動きを確かめる。
+	# --- 橋渡し。`EngineDebugger` に繋がっていなくても記録は続き、`_bridge_*` を直に呼べる。
 	assert(quiet._bridge_items.size() == 3, "板の無い側でも記録が %d 件" % quiet._bridge_items.size())
 	var snapshot: Array = quiet._bridge_snapshot()
 	assert(snapshot.size() == 3, "一覧の数が %d" % snapshot.size())
@@ -59,7 +48,7 @@ func _run() -> void:
 	assert(snapshot[2].kind == "toggle" and snapshot[2].value == false,
 		"入り切りの行の記録が %s" % str(snapshot[2]))
 
-	# 合言葉に合わない知らせは扱わず false を返す。
+	# 知らない知らせは扱わず false を返す。
 	assert(not quiet._bridge_capture("何か知らない", []),
 		"知らない知らせを扱ってしまった")
 
@@ -140,7 +129,7 @@ func _run() -> void:
 	apply.pressed.emit()
 	assert(stored[0] == 500.0, "決めても渡らない: %f" % stored[0])
 
-	# 板を開き直すと、いまの値へ戻る。開いている間に外で変わることがある。
+	# 板を開き直すと、いまの値へ戻る。
 	stored[0] = 42.0
 	menu.open()
 	assert(is_equal_approx(spin.value, 42.0), "開き直しても %f のまま" % spin.value)
@@ -153,39 +142,34 @@ func _run() -> void:
 	option.item_selected.emit(2)
 	assert(chosen[0] == 2, "選んだ番号が %d" % chosen[0])
 
-	# 何をしたかを返す一行が書き換わる。効いたのかどうかが見えないと困る。
+	# 状況の一行が書き換わる。
 	menu.set_status("試した")
 	assert(menu._status_label.text == "試した", "状況が %s" % menu._status_label.text)
 
-	# 開いている間に外で値が変わったら、変えた側から読み直させる。読み直さないと、
-	# 古い値のまま「決定」を押して変更をなかったことにしてしまう。
+	# 開いている間に外で値が変わったら、変えた側から読み直させられる。
 	stored[0] = 7.0
 	menu.refresh_numbers()
 	assert(is_equal_approx(spin.value, 7.0), "読み直しても %f のまま" % spin.value)
 
-	# 構えたまま項目を外しても、待ちが明けたときに落ちない。板は自動読み込みなので
-	# 待ちだけが残り、釦が先に消える形になる。
+	# 構えたまま項目を外しても、待ちが明けたときに落ちない。
 	var short_confirm: Button = menu.add_confirm_button(
 		"短い確認", func() -> void: pass, "もう一度", 0.2)
 	short_confirm.pressed.emit()
 	menu.clear_items()
 	await create_timer(0.5).timeout
 
-	# 外した後に開き直しても落ちない。数の行の読み直しが、消えた入力欄を
-	# 触らないこと。
+	# 外した後に開き直しても、数の行の読み直しが消えた入力欄を触らない。
 	menu.close()
 	menu.open()
 	assert(menu.is_open(), "開き直せない")
 
-	# 状況の一行は流れる側に入れない。項目が増えても押した結果が見えるように
-	# するためで、以前は一行ごと流れて画面の外へ出ていた。
+	# 状況の一行は流れる側に入れない。
 	var scrolls: Array = []
 	for child in menu._status_label.get_parent().get_children():
 		if child is ScrollContainer:
 			scrolls.append(child)
 	assert(scrolls.size() == 1, "流れる場所が %d 個ある" % scrolls.size())
-	# 直の親ではなく、流れる側の下にあるかで見る。部品が持つ行と作品が足す行を
-	# 分ける置き場が間に挟まっても、確かめたいこと (項目は流れる) は変わらない。
+	# 直の親ではなく、流れる側の下にあるかで見る。間に置き場が挟まってもよい。
 	assert(_is_under(menu._items, scrolls[0]), "項目が流れる側に入っていない")
 	assert(not _is_under(menu._status_label, scrolls[0]), "状況の一行が流れる側に入っている")
 	assert(_is_under(menu._builtins, scrolls[0]), "部品が持つ行が流れる側に入っていない")
@@ -196,7 +180,7 @@ func _run() -> void:
 	var ranked: Button = menu.add_button("ランク釦", func() -> void: pass)
 	menu.set_category("勤務")
 	var worked: Label = menu.add_label("勤務の行")
-	# 釦は文字の幅で左へ寄せ、板いっぱいに伸ばさない（横に並べた釦も同じ）。
+	# 釦は板いっぱいに伸ばさない（横に並べた釦も同じ）。
 	var lone: Button = menu.add_button("ひとつ", func() -> void: pass)
 	var paired: Button = menu.add_button("並び", func() -> void: pass, "並べる")
 	assert(lone.size_flags_horizontal == Control.SIZE_SHRINK_BEGIN and paired.size_flags_horizontal == Control.SIZE_SHRINK_BEGIN,
@@ -215,7 +199,7 @@ func _run() -> void:
 	assert(_is_under(composed, work_fold), "add_control の部品が分類の折りたたみに入っていない")
 	assert(loose.get_parent() == menu._items, "分類なしの項目が折りたたみに入った")
 	assert(work_fold.folded, "折りたたみが既定で開いている")
-	# 開いた分類は、場面が替わって足し直しても開いたまま出す。
+	# 開いた分類は足し直しても開いたまま出す。
 	work_fold.folded = false
 	menu.clear_items()
 	menu.set_category("勤務")
@@ -225,7 +209,7 @@ func _run() -> void:
 	assert(not again.folded, "開いていた分類が足し直しで畳まれた")
 	menu.clear_items()
 
-	# 書体を指定していなくても、釦の見た目は板が決める（作品の飾りのテーマを借りない）。書体は既定のまま。
+	# 書体を指定していなくても釦の見た目は板が決め、書体は既定のまま。
 	assert(menu._ui_theme() != null and menu._ui_theme().default_font == null, "指定していないのに書体を変えた")
 	assert(menu._ui_theme().get_stylebox("normal", "Button") is StyleBoxFlat
 		and menu._ui_theme().get_stylebox("pressed", "Button") is StyleBoxFlat, "釦に板の見た目が無い")
@@ -239,7 +223,7 @@ func _run() -> void:
 	assert(themed._button.theme != null, "釦へテーマが付いていない")
 	assert(themed._panel.theme.default_font_size == 25,
 		"文字の大きさが %d" % themed._panel.theme.default_font_size)
-	# 板と釦で同じものを使い回す。作り直すと、書体が二重に読み込まれる。
+	# 板と釦で同じテーマを使い回す。
 	assert(themed._panel.theme == themed._button.theme, "テーマを作り直している")
 	ProjectSettings.set_setting("gmorn_debug_menu/font_size", 0)
 	# 縁の太さと角の丸みを設定で変えられる。既定は太さ3・丸み16。
@@ -266,8 +250,7 @@ func _run() -> void:
 	assert(broken._panel != null, "書体を読めないだけで板が作られなくなった")
 	ProjectSettings.set_setting("gmorn_debug_menu/font_path", "")
 
-	# 覚えた倍率は、起動し直しても戻る。合わせ直した音量が毎回戻ると、確かめたい
-	# 状態を作るのに同じ操作を繰り返させることになる。
+	# 覚えた倍率は、起動し直しても戻る。
 	var store := "user://verify_volume.cfg"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(store))
 	ProjectSettings.set_setting("gmorn_debug_menu/volume_store", store)
@@ -283,7 +266,7 @@ func _run() -> void:
 	await process_frame
 	assert(is_equal_approx(second.volume_multiplier(), 0.4),
 		"覚えた倍率が戻らない: %f" % second.volume_multiplier())
-	# 同じ置き場に並べた他の値を消さない。読んでから書くこと。
+	# 同じ置き場に並べた他の値を消さない。
 	var shared := ConfigFile.new()
 	shared.load(store)
 	shared.set_value("別の節", "残す", 7)
@@ -310,7 +293,7 @@ func _run() -> void:
 	quiet.set_volume_multiplier(0.5)
 	assert(is_equal_approx(quiet.volume_multiplier(), 0.5), "倍率が入らない")
 
-	# 等倍のあいだは母線へ何も積まない。触っていない作品の音の道を変えない。
+	# 等倍のあいだは母線へ何も積まない。
 	var bus := AudioServer.get_bus_index("Master")
 	var before: int = AudioServer.get_bus_effect_count(bus)
 	var untouched: CanvasLayer = script.new()
@@ -330,19 +313,17 @@ func _run() -> void:
 	assert(amp != null, "積んだものが増幅でない")
 	assert(is_equal_approx(amp.volume_db, linear_to_db(0.25)),
 		"掛かった量が %f" % amp.volume_db)
-	# 作品が母線の音量を変えても、倍率は掛かったまま残る。**強制的に乗算する**
-	# とはこの形である。母線の音量を書き換える作りだと、ここで倍率が消える。
+	# 作品が母線の音量を変えても、倍率は掛かったまま残る。
 	AudioServer.set_bus_volume_db(bus, volume_before - 6.0)
 	assert(is_equal_approx(amp.volume_db, linear_to_db(0.25)),
 		"作品が音量を変えたら倍率が消えた")
 	AudioServer.set_bus_volume_db(bus, volume_before)
-	# 0 倍は無音まで落とす。対数では 0 を表せない。
+	# 0 倍は無音まで落とす。
 	untouched.set_volume_multiplier(0.0)
 	assert(amp.volume_db <= -80.0, "0倍で無音になっていない: %f" % amp.volume_db)
 	untouched.set_volume_multiplier(1.0)
 
-	# 音量の行は、作品が場面を切り替えても消えない。`clear_items()` で消える
-	# 側へ混ぜていると、場面が変わるたびに音量を合わせ直すことになる。
+	# 音量の行は `clear_items()` で消えない。
 	assert(menu._builtins != null and menu._builtins.get_child_count() > 0,
 		"音量の行が置かれていない")
 	var builtin_rows: int = menu._builtins.get_child_count()
@@ -351,7 +332,7 @@ func _run() -> void:
 	assert(menu._builtins.get_child_count() == builtin_rows,
 		"clear_items() で音量の行まで消えた")
 
-	# つまみの行は、動かしている最中に渡る。決定を待たせると音を合わせられない。
+	# つまみの行は、動かしている最中に渡る。
 	var slid: Array = []
 	var slider: HSlider = menu.add_slider("つまみ",
 		func() -> float: return 0.5,
@@ -361,22 +342,15 @@ func _run() -> void:
 	assert(slid.size() == 1 and is_equal_approx(slid[0], 0.8),
 		"動かしても渡らない: %s" % str(slid))
 
-	# **どんな行を足しても、板は画面の中に収まる。**
-	#
-	# 行を足すのは作品側で、板を作った後に足される。指定した大きさより広い行が
-	# 1つでも来ると、`PanelContainer` はその最小の幅まで広がる。以前は広がった
-	# ぶんがそのまま画面の外へ出ていた（取り込んだ作品で、幅 491px・右端が
-	# 1979px と画面より 59px 外に出ていた）。
+	# --- どんな行を足しても、板は画面の中に収まる。
 	ProjectSettings.set_setting("gmorn_debug_menu/font_size", 0)
-	# **画面の広さを決めてから測る。**窓の無い実行の既定は 64×64 で、そこでは
-	# 何を置いてもはみ出す。遊ぶ人が見る広さに近い値へ広げて確かめる。
+	# ヘッドレスの既定 64×64 では何を置いてもはみ出すので、画面の広さを決めてから測る。
 	root.size = Vector2i(1280, 720)
 	await process_frame
 	var view: Vector2 = root.get_visible_rect().size
 	assert(view.x >= 1000.0, "画面の広さを決められていない: %s" % view)
 
-	# **広げる側**。指定より中身が広く、それでも画面には入る場合は、中身に
-	# 合わせて広げる。指定を 100px まで絞って、必ずこの枝に落とす。
+	# 広げる側。指定を 100px まで絞って、必ずこの枝に落とす。
 	ProjectSettings.set_setting("gmorn_debug_menu/panel_width", 100.0)
 	var widened: CanvasLayer = script.new()
 	root.add_child(widened)
@@ -396,21 +370,17 @@ func _run() -> void:
 	await process_frame
 	ProjectSettings.set_setting("gmorn_debug_menu/panel_width", 420.0)
 
-	# **止める側**。画面に入らないほど中身が広ければ、そこで止めて中を流す。
-	# 4隅すべてで見る。寄せ方ごとに座標の出し方が違う。
+	# 止める側。寄せ方ごとに座標の出し方が違うので4隅すべてで見る。
 	for corner: String in ["top_right", "top_left", "bottom_right", "bottom_left"]:
 		ProjectSettings.set_setting("gmorn_debug_menu/button_corner", corner)
 		var cornered: CanvasLayer = script.new()
 		root.add_child(cornered)
 		await process_frame
-		# 板の指定より明らかに広い行を足す。
 		cornered.add_label("と".repeat(400))
 		cornered.add_button("も" + "の".repeat(200), func() -> void: pass)
 		cornered.open()
 		await process_frame
-		# **前提を先に確かめる。**足した行が実は狭ければ、板は最初から画面に
-		# 収まっていて、直した分岐を1つも通らないまま assert が素通りする
-		# （既定の書体は日本語の字を持たないので、字幅は環境で変わる）。
+		# 前提を先に確かめる。字幅は環境で変わるので、足した行が狭いと分岐を通らず素通りする。
 		var content: float = cornered._stack.get_combined_minimum_size().x \
 			+ cornered._panel_inner_width()
 		assert(content > view.x - 24.0,
@@ -423,14 +393,14 @@ func _run() -> void:
 		assert(rect.end.x <= view.x + 0.5 and rect.end.y <= view.y + 0.5,
 			"%s で板が画面の外へ出ている: 右端 %.0f / 下端 %.0f（画面は %s）" % [
 				corner, rect.end.x, rect.end.y, view])
-		# 入り切らないぶんは流して見せる。切り落とすと触れない行が出る。
+		# 入り切らないぶんは流して見せる。
 		assert(cornered._scroll.horizontal_scroll_mode != ScrollContainer.SCROLL_MODE_DISABLED,
 			"%s で横に流せない。入り切らない行へ届かなくなる" % corner)
 		cornered.queue_free()
 		await process_frame
 	ProjectSettings.set_setting("gmorn_debug_menu/button_corner", "top_right")
 
-	# **中央に出す形**。板は画面の真ん中、後ろは幕で覆い、幕か Esc で閉じる。
+	# 中央に出す形。板は画面の真ん中、後ろは幕で覆い、幕か Esc で閉じる。
 	ProjectSettings.set_setting("gmorn_debug_menu/modal", true)
 	var modal: CanvasLayer = script.new()
 	root.add_child(modal)
@@ -458,9 +428,7 @@ func _run() -> void:
 	await process_frame
 	ProjectSettings.set_setting("gmorn_debug_menu/modal", false)
 
-	# **開いたまま画面を縮めても収まる。**窓を掴んで縮める、全画面から戻す、
-	# といった場面で置き直せているか。`size_changed` の繋ぎが外れると、
-	# 開きっぱなしの板だけが前の広さのまま取り残される。
+	# 開いたまま画面を縮めても収まる。
 	var resized: CanvasLayer = script.new()
 	root.add_child(resized)
 	await process_frame
@@ -480,19 +448,15 @@ func _run() -> void:
 	root.size = Vector2i(1280, 720)
 	await process_frame
 
-	# 釦は隠せる。撮影や配信のときに使う。
+	# 釦は隠せる。
 	menu.set_button_visible(false)
 	assert(not menu._button.visible, "隠れない")
 
-	# 走の間に置き土産を残さない。次の走が読んでしまう。
+	# 次の走に置き土産を残さない。
 	_forget_stored_volume()
 
-	# --- エディタ常時表示ドックが使う項目UI（gmorn_debug_menu_debugger_tab.gd）--
-	#
-	# デバッガパネルのタブとエディタのドックは同じこのスクリプトを使い回す。
-	# 繋いだ側（本物の EditorDebuggerSession が要る）はエディタの中でしか
-	# 確かめられないため、ここでは繋がない側の分岐だけを見る。未接続でも
-	# 表示だけ出てエラーにならないことが、非実行時の要件そのもの。
+	# --- 項目UI（gmorn_debug_menu_debugger_tab.gd）。本物の EditorDebuggerSession は
+	# エディタの中でしか作れないので、繋がない側の分岐だけを見る。
 	var tab_script: GDScript = load(
 		"res://addons/gmorn_debug_menu/gmorn_debug_menu_debugger_tab.gd")
 	var tab: VBoxContainer = tab_script.new()
@@ -508,7 +472,7 @@ func _run() -> void:
 	assert(tab._list.get_child_count() == 0, "止まっても一覧が残る")
 	assert(tab._status_label.text == "実行中プロセスなし",
 		"止まっても未接続の表示に戻らない")
-	# セッションが無いままボタンを押しても落ちない（送る先が無いだけ）。
+	# セッションが無いまま釦を押しても落ちない。
 	tab.handle_message("gmorn_debug_menu:sync", [[
 		{"id": 2, "kind": "button", "label": "押しても落ちない"},
 	]])
@@ -516,12 +480,7 @@ func _run() -> void:
 	pressless_button.pressed.emit()
 	tab.queue_free()
 
-	# --- エディタドックのセクション拡張（gmorn_debug_menu_dock.gd）------------
-	#
-	# 他のアドオンやプロジェクトが `register_section()` / `unregister_section()`
-	# で自分のセクションを差し込める。既存の実行中プロセス連携UIも
-	# `plugin.gd` から見ればこの仕組みに載る1つのセクションでしかない
-	# （`plugin.gd` 自体はエディタでしか動かないためここでは確かめない）。
+	# --- ドックのセクション（gmorn_debug_menu_dock.gd）。`plugin.gd` はエディタでしか動かない。
 	var dock_script: GDScript = load(
 		"res://addons/gmorn_debug_menu/gmorn_debug_menu_dock.gd")
 	var dock: VBoxContainer = dock_script.new()
@@ -549,8 +508,7 @@ func _run() -> void:
 	header_a.toggled.emit(true)
 	assert(section_a.visible, "開いても表示されない")
 
-	# 同じ id で登録し直すと、古い方を外して差し替える。並び順は最後尾へ移る
-	# （外してから足し直すだけの単純な仕組みなので、元の位置には戻らない）。
+	# 同じ id で登録し直すと差し替え、並び順は最後尾へ移る。
 	var section_a2 := Label.new()
 	section_a2.text = "節A差し替え"
 	dock.register_section(&"a", "節A差し替え", section_a2)
@@ -559,7 +517,7 @@ func _run() -> void:
 	assert(_is_under(section_a2, dock), "差し替えた新しい中身が無い")
 	section_a.queue_free()
 
-	# 外すと一覧から消える。渡した Control 自体は消さず、呼び出し側へ返す。
+	# 外すと一覧から消える。渡した Control 自体は消さない。
 	dock.unregister_section(&"b")
 	assert(dock.section_ids() == [&"a"], "外した後の並びが %s" % str(dock.section_ids()))
 	assert(not dock.has_section(&"b"), "外したのに残っていると言う")
@@ -571,10 +529,7 @@ func _run() -> void:
 	dock.unregister_section(&"存在しない")
 	dock.queue_free()
 
-	# --- .tres 駆動のセクション列挙（gmorn_debug_menu_section.gd / _scanner.gd）--
-	#
-	# 派生スクリプトを付けた .tres を指定フォルダへ置くだけでセクションが増える
-	# ことを確かめる。コードを変えず .tres を足すだけで増えることが要件。
+	# --- .tres 駆動のセクション（gmorn_debug_menu_section.gd / _scanner.gd）。
 	var scanner_script: GDScript = load(
 		"res://addons/gmorn_debug_menu/gmorn_debug_menu_section_scanner.gd")
 	var section_dir_path: String = scanner_script.section_dir()
@@ -587,8 +542,7 @@ func _run() -> void:
 	var abs_section_dir: String = ProjectSettings.globalize_path(section_dir_path)
 	DirAccess.make_dir_recursive_absolute(abs_section_dir)
 
-	# 派生スクリプトを書く。`class_name` は付けず、絶対パスの extends にする
-	# （アドオン側の既定と揃える）。
+	# 派生スクリプト。`class_name` は付けず、絶対パスの extends にする。
 	var derived := GDScript.new()
 	derived.source_code = "extends \"res://addons/gmorn_debug_menu/gmorn_debug_menu_section.gd\"\n" \
 		+ "func create_control() -> Control:\n" \
@@ -600,13 +554,13 @@ func _run() -> void:
 	assert(ResourceSaver.save(derived, derived_path) == OK, "派生スクリプトを書けない")
 	derived = load(derived_path)
 
-	# id を指定しない .tres。既定でファイル名（拡張子抜き）から id を作る。
+	# id を指定しない .tres はファイル名から id を作る。
 	var example: Resource = derived.new()
 	example.title = "検証用セクション"
 	var example_path := section_dir_path.path_join("example.tres")
 	assert(ResourceSaver.save(example, example_path) == OK, "tres を書けない")
 
-	# id を指定した .tres。ファイル名の代わりにそちらを使う。
+	# id を指定した .tres はそちらを使う。
 	var custom: Resource = derived.new()
 	custom.title = "カスタムIDのセクション"
 	custom.section_id = &"custom_id"
@@ -617,8 +571,7 @@ func _run() -> void:
 	var unrelated_path := section_dir_path.path_join("unrelated.tres")
 	assert(ResourceSaver.save(Resource.new(), unrelated_path) == OK, "無関係な tres を書けない")
 
-	# ファイル名順（custom.tres → example.tres → unrelated.tres）に列挙する。
-	# unrelated.tres は継承していないので数に入らない。
+	# ファイル名順に列挙し、継承していない unrelated.tres は数に入らない。
 	var scanned: Array[Resource] = scanner_script.scan()
 	assert(scanned.size() == 2, "見つけたセクションが %d 件" % scanned.size())
 	assert(scanned[0].title == "カスタムIDのセクション" and scanned[1].title == "検証用セクション",

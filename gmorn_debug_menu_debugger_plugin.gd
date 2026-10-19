@@ -1,24 +1,16 @@
 extends EditorDebuggerPlugin
 
-## デバッガパネル側の入口。
-##
-## 合言葉 `gmorn_debug_menu` で始まる知らせだけを受け取り、セッションごとの
-## タブ (`gmorn_debug_menu_debugger_tab.gd`) へ渡す。仕様は README.md の
-## 「リモート操作の仕組み」を参照。
-##
-## エディタ常時表示のドック (`plugin.gd` が `add_dock()` で足す) も同じ入口を
-## 通す。ドックは `bind_dock()` で登録するだけで、繋ぐ先のセッションはここが選ぶ
-## （動いているセッションへ繋ぎ、止まれば他に動いているものへ繋ぎ直す）。
+## デバッガパネル側の入口。セッションごとのタブとドックへ知らせを渡す。
+## ドックが繋ぐセッションはここが選ぶ（止まれば他に動いているものへ繋ぎ直す）。
 
 const CAPTURE_NAME := "gmorn_debug_menu"
 const TabScript := preload("gmorn_debug_menu_debugger_tab.gd")
 
-## セッションごとのタブ。`session_id (int) -> Control`。
+## `session_id -> Control`。
 var _tabs: Dictionary = {}
 
-## ドックの中身。登録されていなければ `null`。
 var _dock_content: Control
-## いま `_dock_content` が繋がっているセッションの id。繋いでいなければ -1。
+## 繋いでいなければ -1。
 var _dock_session_id: int = -1
 
 func _has_capture(capture: String) -> bool:
@@ -31,13 +23,12 @@ func _setup_session(session_id: int) -> void:
 	tab.setup(session)
 	session.add_session_tab(tab)
 	_tabs[session_id] = tab
-	# 実行が始まるたびに、そのときの項目一覧を貰い直す。
 	session.started.connect(_on_session_started.bind(session_id))
 	session.stopped.connect(_on_session_stopped.bind(session_id))
 	if session.is_active():
 		_on_session_started(session_id)
 
-## セッションは再実行で再利用されるため、生成時ではなく開始通知ごとに接続する。
+## セッションは再実行で再利用されるので、生成時ではなく開始通知ごとに接続する。
 func _on_session_started(session_id: int) -> void:
 	var tab: Control = _tabs[session_id]
 	tab.set_session(get_session(session_id))
@@ -55,8 +46,6 @@ func _capture(message: String, data: Array, session_id: int) -> bool:
 		_dock_content.handle_message(message, data)
 	return true
 
-## エディタ常時表示ドックの中身を登録する。今すでに動いているセッションがあれば、
-## すぐそこへ繋ぐ。無ければ未接続のまま。
 func bind_dock(content: Control) -> void:
 	_dock_content = content
 	var active_id := _find_active_session_id()
@@ -66,7 +55,6 @@ func bind_dock(content: Control) -> void:
 		_dock_session_id = -1
 		content.set_session(null)
 
-## プラグインを外す（`_exit_tree()`）ときに呼ぶ。
 func unbind_dock() -> void:
 	_dock_content = null
 	_dock_session_id = -1

@@ -1,19 +1,14 @@
 extends VBoxContainer
 
-## デバッガパネルの中身。項目一覧を描き、監視値の知らせで更新表示し、
-## 釦・つまみ・選び・入り切りの操作をランタイムへ送る。ランタイム側は
-## `gmorn_debug_menu.gd` の `_bridge_*`。
-##
-## デバッガパネルのタブ (`gmorn_debug_menu_debugger_plugin.gd` が作る) と、
-## エディタ常時表示のドック (`plugin.gd` が作る) の両方から使う。
-## ドック側はセッションが無い状態でも表示するため、`session` は無くてよい。
+## 項目一覧を描き、操作をランタイム（`gmorn_debug_menu.gd` の `_bridge_*`）へ送る。
+## デバッガパネルのタブとドックの両方から使う。ドックはセッションが無くても表示する。
 
 const DISCONNECTED_STATUS := "実行中プロセスなし"
 
 var _session: EditorDebuggerSession
 var _list: VBoxContainer
 var _status_label: Label
-## 監視値を映す行。`id (int) -> {kind, control}`。
+## `id -> {kind, control}`。
 var _rows: Dictionary = {}
 
 const BROWSER := preload("gmorn_debug_menu_browser.tscn")
@@ -30,7 +25,7 @@ func setup(session: EditorDebuggerSession = null) -> void:
 	_status_label = _browser.get_node("Status")
 	set_session(session)
 
-## 繋ぐセッションを差し替える。`null` なら未接続として表示する。
+## `null` なら未接続として表示する。
 func set_session(session: EditorDebuggerSession) -> void:
 	_session = session
 	if _session == null:
@@ -39,16 +34,13 @@ func set_session(session: EditorDebuggerSession) -> void:
 	else:
 		_status_label.text = ""
 
-## 繋いでいたセッションが止まったときに呼ぶ。一覧を空にし、未接続の旨を表示する。
 func on_session_stopped() -> void:
 	set_session(null)
 
-## 実行が始まったとき、いまの項目一覧を貰い直す。
 func request_sync() -> void:
 	if _session != null:
 		_session.send_message("gmorn_debug_menu:sync_request")
 
-## `gmorn_debug_menu_debugger_plugin.gd` の `_capture()` から渡される。
 func handle_message(message: String, data: Array) -> void:
 	match message:
 		"gmorn_debug_menu:sync":

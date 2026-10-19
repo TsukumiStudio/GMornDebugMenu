@@ -1,137 +1,97 @@
 extends CanvasLayer
 
-## 配布したものにも載せられるデバッグ板。
-##
-## デバッグ機能を開発中だけのものにすると、配ったものに触ってもらったときに
-## 状況を作れない。「その場面を出してください」と頼んでも、遊ぶ側には出し方が
-## 分からない。隅の小さな釦から開ける板にして、配布物にもそのまま載せる。
-##
-## 隠したくなったら `set_button_visible(false)` を呼ぶ。撮影や配信のときに使う。
-##
-## 中身（項目）はこの部品では持たない。作品ごとに違うためで、外から足す。
-##
-##   var menu := get_node("/root/GMornDebugMenu")
-##   menu.add_number("所持金", func(): return money, func(v): set_money(v))
-##   menu.add_button("1000円足す", func(): add_money(1000))
-##   menu.add_confirm_button("セーブデータ削除", func(): erase_save())
-##
-## 使い方は README.md を参照。
+## 配布物にも載せるデバッグ板。開発中だけの機能だと、配ったものに触ってもらった
+## ときに状況を作れない。中身（項目）は作品ごとに違うので外から足す。
 
-## 拍動の群れの名前。`addons/gmorn_beat` にある値と同じものを持つ。
-##
-## `preload` で指すと、その部品を取っていない状態でこの台本ごと読めなくなる。
-## そうなると板が開きっぱなしのまま操作を受け付けなくなる。名前を1つ持つだけ
-## なので、そのまま書く。
+## `addons/gmorn_beat` の群れの名前。`preload` で指すと、その部品を取っていない状態で
+## この台本ごと読めなくなるので、値をそのまま書く。
 const BEAT_SCALE_GROUP := &"gmorn_beat_scaler"
 
 const SETTINGS := preload("gmorn_debug_menu_settings.gd")
 
-## 釦と板の間（画素）。
 const PANEL_GAP := 8.0
 
-## 板を描く層。作品のHUDや遷移の幕（数十〜数百の層）より上へ出す。
-## 既定の 1 のままだと、板を大きくしたときにHUDが板の上へ重なり、中央に出したときの
-## 覆いもHUDだけ覆えなかった。
+## 作品のHUDや遷移の幕（数十〜数百の層）より上。低いと板や覆いの上にHUDが重なる。
 const DRAW_LAYER := 1000
 
-## 分類の折りたたみの中身を右へ寄せる幅（画素）。
 const CATEGORY_INDENT := 16
 
-## しまう先の節と鍵。他の値を並べて置けるように節を切ってある。
+## 他の値を並べて置けるように節を切ってある。
 const STORE_SECTION := "gmorn_debug_menu"
 const STORE_VOLUME_KEY := "volume_multiplier"
 
-## 数の行が、いまの値の読み方をしまう場所。行と一緒に消える。
+## 数の行がいまの値の読み方を持つメタ。行と一緒に消える。
 const NUMBER_GETTER_META := &"gmorn_debug_menu_getter"
 
-## 釦へ出す工具の絵。
-##
-## 絵文字は環境の書体に左右されて豆腐になることがあるため、絵そのものを持つ。
-## SVGを実行時に起こすので、画像ファイルを足さなくてよい。
+## 釦の工具の絵。絵文字は環境の書体で豆腐になり、画像ファイルは付属物を増やすので、
+## SVG 文字列を実行時に起こす。
 const WRENCH_ICON_SVG := """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 <path d="M14.7 6.3a4 4 0 0 0 5 5l-9.4 9.4a2.1 2.1 0 0 1-3-3z"/>
 <path d="M14.7 6.3 17.5 3.5a4 4 0 0 1 3 5.5l-2.8-2.7z"/>
 </svg>"""
 
-## 板の開け閉めのたびに流れる。
 signal panel_toggled(opened: bool)
 
 var settings: RefCounted
 
 var _button: Button
 var _panel: PanelContainer
-## 中央に出すとき（`modal`）に後ろを覆う幕。
+## `modal` のとき後ろを覆う幕。
 var _dim: ColorRect
-## 項目を流す枠と、その中の縦並び。板を画面へ収めるときに中身の幅を測る。
+## 板を画面へ収めるときに中身の幅を測る。
 var _scroll: ScrollContainer
 var _stack: VBoxContainer
 var _items: VBoxContainer
 var _status_label: Label
 var _theme: Theme
-## 音量の倍率。1.0 が素のまま。
 var _volume_multiplier := 1.0
-## 倍率を掛けるために母線へ積む増幅。掛け始めるまでは作らない。
+## 掛け始めるまでは作らない。
 var _volume_effect: AudioEffectAmplify = null
-## 部品が持つ行の置き場。`clear_items()` で消える `_items` とは分けてある。
-## 一緒にしていると、作品が場面を切り替えるたびに音量の行まで消える。
+## 部品が持つ行。`clear_items()` で消える `_items` と一緒にすると、場面を切り替える
+## たびに音量の行まで消える。
 var _builtins: VBoxContainer
-## 二度押しの世代。押し直しの待ち時間が重なっても、古い待ちが新しい構えを
-## 解いてしまわないようにするために数える。
+## 二度押しの世代。古い待ちが新しい構えを解かないように数える。
 var _confirm_generation := 0
 
-# --- エディタのデバッガパネルとの橋渡し --------------------------------------
-#
-# `EditorDebuggerPlugin` 側 (`gmorn_debug_menu_debugger_plugin.gd` /
-# `gmorn_debug_menu_debugger_tab.gd`) とメッセージでやり取りする。仕様は
-# README.md の「リモート操作の仕組み」を参照。
+# --- エディタのデバッガパネルとの橋渡し（仕様は README.md） ------------------
 
-## 合言葉。`EngineDebugger.register_message_capture()` と、エディタ側の
-## `_has_capture()` の両方がこの文字列で揃っている必要がある。
+## エディタ側の `_has_capture()` と揃える。
 const BRIDGE_NAME := "gmorn_debug_menu"
-## 監視値を送る間隔（秒）。
 const BRIDGE_POLL_SECONDS := 0.3
 
-## 足した項目の置き場。`id (int) -> {kind, label, invoke?, set_value?,
-## value_getter?, options?, last_value?}`。`EngineDebugger.is_active()` が
-## 偽のときも記録だけは続ける。検証がこの中身を直に確かめられるようにするため。
+## `id -> {kind, label, invoke?, set_value?, value_getter?, options?, last_value?}`。
+## `EngineDebugger` が無くても記録は続ける。検証がこの中身を直に確かめる。
 var _bridge_items: Dictionary = {}
 var _bridge_next_id := 0
 var _category := ""
-## 分類ごとの折りたたみ。`"親/子" -> 中身の VBoxContainer`。`clear_items()` で空になる。
+## `"親/子" -> 中身の VBoxContainer`。
 var _category_boxes: Dictionary = {}
-## 分類ごとの開閉。場面が替わって項目を足し直しても、開いていた分類は開いたまま出す。
+## `clear_items()` を跨いで開閉を覚え、足し直しても開いていた分類は開いたまま出す。
 var _category_folded: Dictionary = {}
-## 本当にエディタへ繋がっているか。繋がっていないときは記録だけして送らない。
 var _bridge_active := false
 
 func _ready() -> void:
 	layer = DRAW_LAYER
 	settings = SETTINGS.new()
 	settings.load_from_environment()
-	# 覚えてある倍率を先に戻す。板を作る前に読むので、つまみが最初から
-	# その位置で出る。板を作らない実行でも掛かる。
+	# 板を作る前に倍率を戻す。つまみが最初からその位置で出る。
 	_load_volume_multiplier()
-	# 項目の置き場は必ず作る。板を作らない実行でも、足した項目が返す `Label` や
-	# `Button` は生きていなければならない。捨ててしまうと、呼ぶ側が持っている
-	# 参照が freed になり、書き込んだ瞬間に落ちる。
+	# 板を作らない実行でも置き場は作る。足した項目が返す `Label` 等を捨てると、
+	# 呼ぶ側の参照が freed になり書き込んだ瞬間に落ちる。
 	_items = VBoxContainer.new()
 	_items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# デバッガへの橋渡しは板の有無と関係なく効かせる。画面の無い専用サーバでも
-	# リモートから項目を操りたいことがあるため。
+	# 橋渡しは板の有無と無関係。画面の無い実行でもリモートから項目を操る。
 	_bridge_setup()
-	# 画面の無い実行では板を作らない。作っても誰も見ないうえ、検証のたびに
-	# 木へ余計なノードが増える。切ってあるときも同じ。
+	# ヘッドレスでは板を作らない。検証のたびに木へ余計なノードが増える。
 	if not settings.enabled \
 			or (DisplayServer.get_name() == "headless" and not settings.build_when_headless):
-		# 置き場だけを隠して持つ。木の下に居るので、この板と一緒に片付く。
 		_items.visible = false
 		add_child(_items)
 		return
 	_build_ui()
-	# 開発用の板は製品画面ではない。拍動する釦を使っていても、ここでは揺らさない。
 	_disable_beat_scale(self)
 
-## 釦の出し入れ。撮影や配信のときに隠せるようにする。
+## 撮影や配信のときに隠す。
 func set_button_visible(value: bool) -> void:
 	if is_instance_valid(_button):
 		_button.visible = value
@@ -148,26 +108,24 @@ func close() -> void:
 func toggle() -> void:
 	_set_open(not is_open())
 
-## 中央に出したときは、覆いを押す以外に Esc でも閉じられるようにする。
 func _unhandled_input(event: InputEvent) -> void:
 	if settings != null and settings.modal and is_open() and event.is_action_pressed("ui_cancel"):
 		close()
 		get_viewport().set_input_as_handled()
 
-## 板の下の方へ出す一行。何をしたかを返す場所。
+## 板の下の一行。押した結果が見えないと効いたのかどうか分からない。
 func set_status(message: String) -> void:
 	if is_instance_valid(_status_label):
 		_status_label.text = message
 	if _bridge_active:
 		EngineDebugger.send_message("%s:status" % BRIDGE_NAME, [message])
 
-## これから登録する項目のEditor上の分類。スラッシュで子階層を指定する。
+## 以後に足す項目の分類。`/` で子階層。
 func set_category(path: String) -> void:
 	_category = "/".join(path.split("/", false))
 
 # --- 項目を足す -------------------------------------------------------------
 
-## 押すと何かする釦。
 func add_button(label: String, action: Callable, row_group := "") -> Button:
 	var button := Button.new()
 	button.text = label
@@ -189,10 +147,8 @@ func add_button(label: String, action: Callable, row_group := "") -> Button:
 	_bridge_register("button", label, {"invoke": func() -> void: button.pressed.emit(), "row_group": row_group})
 	return button
 
-## 押し間違えたら困る釦。1度目で構え、決められた時間内にもう1度押すと通す。
-##
-## 確認の窓を出す手もあるが、窓は板の上へ重なって位置がずれるうえ、
-## 画面の無い実行では出せない。同じ釦の文字を変えるだけなら、どこでも同じに動く。
+## 二度押しで通す釦。確認の窓は板の上へ重なって位置がずれ、画面の無い実行では
+## 出せないので、同じ釦の文字を変える。
 func add_confirm_button(label: String, action: Callable, arm_text := "もう一度押す",
 		seconds := 3.0) -> Button:
 	var button := Button.new()
@@ -215,25 +171,17 @@ func add_confirm_button(label: String, action: Callable, arm_text := "もう一�
 	_bridge_register("button", label, {"invoke": func() -> void: button.pressed.emit()})
 	return button
 
-## 音量の倍率を変える。0.0 で無音、1.0 で素のまま。
-##
-## 板を作らない実行でも通る。呼ぶ側に「板があるか」を書かせないためである。
+## 板を作らない実行でも通る。呼ぶ側に「板があるか」を書かせない。
 func set_volume_multiplier(value: float) -> void:
 	_volume_multiplier = maxf(value, 0.0)
 	_apply_volume_multiplier()
 	_save_volume_multiplier()
 
-## いまの音量の倍率。
 func volume_multiplier() -> float:
 	return _volume_multiplier
 
-## 倍率は、母線の音量そのものではなく **増幅の効果** で掛ける。
-##
-## 母線の音量を書き換える形にすると、作品が自分で音量を変えた瞬間に上書きされ、
-## 掛けたはずの倍率が消える。効果は音量とは別に積まれるので、作品がいくら音量を
-## 触っても、その後ろで必ず掛かる。**強制的に乗算する**とはこの形である。
-##
-## 等倍のあいだは何も積まない。触っていない作品の音の道を変えないため。
+## 母線の音量ではなく増幅の効果で掛ける。音量を書き換えると、作品が自分で音量を
+## 変えた瞬間に倍率が消える。等倍のあいだは積まず、作品の音の道を変えない。
 func _apply_volume_multiplier() -> void:
 	var bus := AudioServer.get_bus_index(settings.volume_bus)
 	if bus < 0:
@@ -244,11 +192,10 @@ func _apply_volume_multiplier() -> void:
 			return
 		_volume_effect = AudioEffectAmplify.new()
 		AudioServer.add_bus_effect(bus, _volume_effect)
-	# 0 倍は対数では表せない。聞こえない値まで落として無音にする。
+	# 0 倍は対数では表せない。
 	_volume_effect.volume_db = -80.0 if _volume_multiplier <= 0.0001 \
 		else linear_to_db(_volume_multiplier)
 
-## 覚えてある倍率を読む。まだ無ければ何もしない (既定の等倍のまま)。
 func _load_volume_multiplier() -> void:
 	if String(settings.volume_store).is_empty():
 		return
@@ -259,22 +206,19 @@ func _load_volume_multiplier() -> void:
 	_volume_multiplier = clampf(stored, 0.0, float(settings.volume_max))
 	_apply_volume_multiplier()
 
-## 倍率をしまう。既にある中身は消さない。
 func _save_volume_multiplier() -> void:
 	if String(settings.volume_store).is_empty():
 		return
 	var file := ConfigFile.new()
-	# 読んでから書く。丸ごと作り直すと、同じ置き場に並べた他の値を消してしまう。
+	# 読んでから書く。作り直すと同じ置き場に並べた他の値を消す。
 	file.load(settings.volume_store)
 	file.set_value(STORE_SECTION, STORE_VOLUME_KEY, _volume_multiplier)
 	var result := file.save(settings.volume_store)
 	if result != OK:
 		push_warning("音量の倍率を書けなかった: %s (%d)" % [settings.volume_store, result])
 
-## つまみで動かす行。`setter` は動かしている最中も呼ばれる。
-##
-## 数を入れて「決定」を押す行と分けてある。音量のように、動かしながら結果を
-## 確かめたいものは、決定を待たせると合わせられない。
+## `setter` は動かしている最中も呼ばれる。音量のように動かしながら合わせるものは、
+## 決定を待たせると合わせられない。
 func add_slider(label: String, getter: Callable, setter: Callable,
 		minimum := 0.0, maximum := 1.0, step := 0.05) -> HSlider:
 	var slider := _build_slider_row(label, float(getter.call()), setter, minimum, maximum, step)
@@ -310,7 +254,7 @@ func _build_slider_row(label: String, value: float, setter: Callable,
 		setter.call(next_value))
 	return slider
 
-## 数を入れて決める行。`getter` はいまの値、`setter` は決めたときの受け口。
+## 数を入れて「決定」で渡す行。
 func add_number(label: String, getter: Callable, setter: Callable,
 		minimum := 0.0, maximum := 99999999.0, step := 1.0) -> SpinBox:
 	var row := HBoxContainer.new()
@@ -328,9 +272,8 @@ func add_number(label: String, getter: Callable, setter: Callable,
 	apply.text = "決定"
 	apply.focus_mode = Control.FOCUS_NONE
 	apply.pressed.connect(func() -> void:
-		# 決定釦がフォーカスを受けないため、入力中のLineEditの文字列が
-		# SpinBox.valueへ反映されないまま押されることがある。古いvalueを
-		# 読むと、表示値ではなく入力前の値をsetterへ渡してしまう。
+		# 決定釦がフォーカスを受けないため、入力中の LineEdit の文字列が
+		# SpinBox.value へ反映されないまま押されることがある。文字列から読む。
 		var value: float = spin.value
 		var line_edit: LineEdit = spin.get_line_edit()
 		var text: String = line_edit.text.strip_edges()
@@ -339,9 +282,8 @@ func add_number(label: String, getter: Callable, setter: Callable,
 		setter.call(value)
 		set_status("%s を %s にしました" % [label, value]))
 	row.add_child(apply)
-	# 読み直し方を行そのものに持たせる。`panel_toggled` へ繋ぐと、`clear_items()`
-	# で行を捨てた後も繋がりだけが残り、次に板を開いたときに解放済みの入力欄へ
-	# 書き込んで落ちる。行と一緒に消えるところへ置けば、その形にならない。
+	# 読み直し方は `panel_toggled` へ繋がず行のメタに置く。繋ぐと `clear_items()` の後も
+	# 繋がりだけが残り、次に開いたとき解放済みの入力欄へ書いて落ちる。
 	spin.set_meta(NUMBER_GETTER_META, getter)
 	_add_item(row)
 	_bridge_register("number", label, {
@@ -354,10 +296,8 @@ func add_number(label: String, getter: Callable, setter: Callable,
 	})
 	return spin
 
-## 数の行を、いまの値へ戻す。
-##
-## 板を開くたびに呼ばれる。開いている間に外で値が変わったときは、変えた側から
-## 呼ぶ。読み直さないと、古い値のまま「決定」を押して上書きしてしまう。
+## 開いている間に外で値が変わったら、変えた側から呼ぶ。読み直さないと古い値のまま
+## 「決定」を押して上書きする。
 func refresh_numbers() -> void:
 	if not is_instance_valid(_items):
 		return
@@ -367,13 +307,12 @@ func _refresh_numbers_in(node: Node) -> void:
 	for child in node.get_children():
 		if child is SpinBox and child.has_meta(NUMBER_GETTER_META):
 			var getter: Callable = child.get_meta(NUMBER_GETTER_META)
-			# 読み直し方が指す先が消えていることがある。行を足した側が
-			# 先に片付いた場合で、そのときは触らない。
+			# 行を足した側が先に片付くと getter の指す先が消えている。
 			if getter.is_valid():
 				(child as SpinBox).set_value_no_signal(float(getter.call()))
 		_refresh_numbers_in(child)
 
-## 選ぶ行。`on_selected` には選んだ番号が渡る。
+## `on_selected` には選んだ番号が渡る。
 func add_option(label: String, options: PackedStringArray, on_selected: Callable,
 		selected := 0) -> OptionButton:
 	var row := HBoxContainer.new()
@@ -397,7 +336,6 @@ func add_option(label: String, options: PackedStringArray, on_selected: Callable
 	})
 	return option
 
-## 入り切りの行。
 func add_toggle(label: String, on_toggled: Callable, pressed := false) -> CheckButton:
 	var check := CheckButton.new()
 	check.text = label
@@ -407,13 +345,12 @@ func add_toggle(label: String, on_toggled: Callable, pressed := false) -> CheckB
 	_add_item(check)
 	_bridge_register("toggle", label, {
 		"value_getter": func() -> bool: return check.button_pressed,
-		# `button_pressed` へ直に書くと `toggled` が流れ、上の繋ぎ経由で
-		# `on_toggled` まで届く。押した場合と同じ道を通す。
+		# `button_pressed` へ書くと `toggled` が流れ、押した場合と同じ道を通る。
 		"set_value": func(value: bool) -> void: check.button_pressed = value,
 	})
 	return check
 
-## 見るだけの行。返る `Label` の `text` を書き換えて使う。
+## 返る `Label` の `text` を書き換えて使う。
 func add_label(text := "") -> Label:
 	var label := Label.new()
 	label.text = text
@@ -421,30 +358,24 @@ func add_label(text := "") -> Label:
 	_bridge_register("label", text, {"value_getter": func() -> String: return label.text})
 	return label
 
-## 作品が組んだ部品をそのまま1つの項目として置く。釦や数の行では表せない並び
-## （名前の入力欄と釦を横に並べる、一覧を出す等）を、部品ごと持ち込むための口。
-## Editorのデバッガーへは写さない（部品の中身はこの板の外からは分からないため）。
+## 作品が組んだ部品を1つの項目として置く。中身が分からないので Editor へは写さない。
 func add_control(control: Control) -> Control:
 	_add_item(control)
 	return control
 
-## 区切り線。項目が増えてきたときに固まりを分ける。
 func add_separator() -> HSeparator:
 	var separator := HSeparator.new()
 	_add_item(separator)
 	return separator
 
-## 足した項目をすべて外す。場面が変わって、前の場面の項目が意味を失ったときに使う。
-##
-## 板は自動読み込みなので、項目を足した側より長生きする。足した側が片付くときは
-## ここを呼ぶ。呼ばないと、消えたものを捕まえたままの釦が押せる状態で残る。
+## 項目を足した側が片付くときに呼ぶ。板は自動読み込みで長生きするので、呼ばないと
+## 消えたものを捕まえたままの釦が押せる状態で残る。
 func clear_items() -> void:
 	if not is_instance_valid(_items):
 		return
-	# 構えている釦の待ちを無効にする。世代を進めておけば、待ちが明けても
-	# 消えた釦へ書き込まない。
+	# 世代を進め、構えている釦の待ちが明けても消えた釦へ書き込まないようにする。
 	_confirm_generation += 1
-	# 開閉を覚えてから消す。場面が替わって足し直しても、開いていた分類は開いたまま出す。
+	# 開閉を覚えてから消す。
 	for path: String in _category_boxes:
 		var fold := (_category_boxes[path] as Node).get_parent().get_parent() as FoldableContainer
 		_category_folded[path] = fold.folded
@@ -464,19 +395,13 @@ func _add_item(control: Control) -> void:
 	if not is_instance_valid(_items):
 		control.queue_free()
 		return
-	# 釦は文字の幅で左へ寄せる。板いっぱいに伸ばすと、どこまでが釦か分からない。
+	# 釦を板いっぱいに伸ばすと、どこまでが釦か分からない。
 	if control is Button and not control is CheckButton:
 		control.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	# 板が無い実行でも同じように受け取る。呼ぶ側に「板があるか」を書かせない。
-	# 置き場ごと隠してあるので、出ることはない。
 	_category_box(_category).add_child(control)
 	_disable_beat_scale(control)
 
-## `set_category()` の分類ごとに、折りたたみの中身を返す（無ければ作る）。
-##
-## 項目が増えると、平たく並べた板では目当ての行を探せない。分類を見出しにして
-## 畳めるようにし、`"勤務/ランク"` のような子階層は入れ子の折りたたみにする。
-## 分類が空のときは折りたたまずに `_items` へ直に置く。
+## 分類ごとの折りたたみの中身（無ければ作る）。分類が空なら `_items` へ直に置く。
 func _category_box(path: String) -> VBoxContainer:
 	if path.is_empty():
 		return _items
@@ -487,10 +412,9 @@ func _category_box(path: String) -> VBoxContainer:
 	var fold := FoldableContainer.new()
 	fold.title = parts[parts.size() - 1]
 	fold.focus_mode = Control.FOCUS_NONE
-	# 既定は畳んで出す。開くと分類の一覧が長くなり、構造が見えなくなる。
+	# 既定は畳む。開くと一覧が長くなり構造が見えない。
 	fold.folded = _category_folded.get(path, true)
-	# 中身を少し右へ寄せる。寄せないと、入れ子の見出しが親の見出しと同じ列に並び、
-	# どこまでが同じ分類かが見えない。
+	# 寄せないと、入れ子の見出しが親と同じ列に並び、どこまでが同じ分類か見えない。
 	var indent := MarginContainer.new()
 	indent.add_theme_constant_override("margin_left", CATEGORY_INDENT)
 	fold.add_child(indent)
@@ -503,9 +427,6 @@ func _category_box(path: String) -> VBoxContainer:
 
 # --- エディタのデバッガパネルとの橋渡し --------------------------------------
 
-## `EngineDebugger` が繋がっているとき（エディタから実行したとき）だけ、
-## 合言葉を登録して監視値の巡回を始める。繋がっていない実行（配布物や
-## この部品単体の検証）では何もしない。
 func _bridge_setup() -> void:
 	if not EngineDebugger.is_active():
 		return
@@ -517,12 +438,8 @@ func _bridge_setup() -> void:
 	timer.timeout.connect(_bridge_poll_values)
 	add_child(timer)
 
-## 項目を1つ記録する。`add_*` の末尾から呼ぶ。
-##
-## `opts` に積めるもの: `invoke` (引数無しの `Callable`、釦の実行),
-## `set_value` (値を1つ受ける `Callable`、つまみ・数・選び・入り切りの変更),
-## `value_getter` (いまの値を返す `Callable`、同期と巡回で使う),
-## `options` (`PackedStringArray`、選ぶ行の選択肢)。
+## `opts`: `invoke`（釦の実行）, `set_value`（値の変更）, `value_getter`（同期と巡回）,
+## `options`（選択肢）。
 func _bridge_register(kind: String, label: String, opts: Dictionary) -> void:
 	var entry := opts.duplicate()
 	entry["kind"] = kind
@@ -532,7 +449,6 @@ func _bridge_register(kind: String, label: String, opts: Dictionary) -> void:
 	_bridge_next_id += 1
 	_bridge_send_sync()
 
-## いまの項目一覧を、エディタへ送れる形に描き出す。
 func _bridge_snapshot() -> Array:
 	var items: Array = []
 	for id: int in _bridge_items.keys():
@@ -553,8 +469,7 @@ func _bridge_send_sync() -> void:
 		return
 	EngineDebugger.send_message("%s:sync" % BRIDGE_NAME, [_bridge_snapshot()])
 
-## エディタから来た知らせを受ける。`EngineDebugger.register_message_capture()`
-## へ渡す関数そのもの。Godotが合言葉とコロンを除いてから渡すため、命令名だけで照合する。
+## Godot が合言葉とコロンを除いてから渡すため、命令名だけで照合する。
 func _bridge_capture(message: String, data: Array) -> bool:
 	match message:
 		"sync_request":
@@ -585,7 +500,7 @@ func _bridge_set_value(id: int, value: Variant) -> void:
 	if entry.has("set_value"):
 		(entry.set_value as Callable).call(value)
 
-## 監視値の差分をエディタへ送る。値が変わった項目だけを送る。
+## 値が変わった項目だけを送る。
 func _bridge_poll_values() -> void:
 	for id: int in _bridge_items.keys():
 		var entry: Dictionary = _bridge_items[id]
@@ -606,8 +521,8 @@ func _set_open(value: bool) -> void:
 		_dim.visible = value
 	if value:
 		refresh_numbers()
-		# **開くたびに置き直す。**行を足すのは作品側で、板を作った後に足される。
-		# 作ったときの寸法のままだと、後から来た広い行のぶんが画面の外へ出る。
+		# 開くたびに置き直す。行は板を作った後に足されるので、作ったときの寸法のままだと
+		# 広い行のぶんが画面の外へ出る。
 		_layout_panel()
 	panel_toggled.emit(value)
 
@@ -616,14 +531,13 @@ func _disarm_later(button: Button, label: String, armed: Array,
 	await get_tree().create_timer(seconds).timeout
 	if generation != _confirm_generation:
 		return
-	# 待っている間に `clear_items()` で釦が消えていることがある。この待ちは板
-	# （自動読み込み）に属するので、釦だけが先に片付く形になる。
+	# 待っている間に `clear_items()` で釦だけが先に片付くことがある。
 	if not is_instance_valid(button):
 		return
 	armed[0] = false
 	button.text = label
 
-## 開発用の板は製品画面ではない。拍動する釦を使っていても、ここでは揺らさない。
+## 開発用の板は揺らさない。
 func _disable_beat_scale(node: Node) -> void:
 	if node is BaseButton and node.is_in_group(BEAT_SCALE_GROUP):
 		node.remove_from_group(BEAT_SCALE_GROUP)
@@ -651,7 +565,6 @@ func _build_ui() -> void:
 	add_child(_button)
 	_build_panel()
 
-## 工具の絵を起こす。書体に頼らないので、どの環境でも同じ形が出る。
 func _wrench_icon() -> Texture2D:
 	var image := Image.new()
 	var size := int(minf(settings.button_size.x, settings.button_size.y) * 0.55)
@@ -672,7 +585,7 @@ func _button_preset() -> int:
 
 func _build_panel() -> void:
 	if settings.modal:
-		# 幕は釦より下へ敷く。開いたまま釦でも閉じられるように、釦は幕の上に残す。
+		# 幕は釦より下。釦でも閉じられるようにする。
 		_dim = ColorRect.new()
 		_dim.color = settings.dim_color
 		_dim.visible = false
@@ -685,12 +598,10 @@ func _build_panel() -> void:
 		move_child(_dim, 0)
 	_panel = PanelContainer.new()
 	_panel.visible = false
-	# 置き場は左上からの座標で決める（`_layout_panel()`）。隅ごとの寄せ方も
-	# あちらが見るので、ここでは寄せ方を持たない。
+	# 置き場は `_layout_panel()` が左上からの座標で決める。
 	_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_panel.add_theme_stylebox_override("panel", _panel_style())
-	# 書体は板そのものへ付ける。テーマは子へ伝わるので、行を足すたびに
-	# 指定し直さなくてよい。
+	# テーマは子へ伝わるので、行を足すたびに指定し直さない。
 	_panel.theme = _ui_theme()
 	add_child(_panel)
 
@@ -698,21 +609,15 @@ func _build_panel() -> void:
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_panel.add_child(column)
 
-	# 項目だけを流れるようにする。項目が板より多くなっても、下の一行は
-	# 流れずに残る。以前は一行ごと流していたため、項目が増えると押した結果が
-	# 画面の外へ出て見えなくなっていた。
+	# 流すのは項目だけ。状況の一行まで流すと、項目が増えたとき押した結果が見えない。
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# **横も流せるようにしておく。**流せないと、行の最小の幅がそのまま枠の
-	# 最小の幅になり、`PanelContainer` が指定した大きさを無視して広がる。
-	# 広がる先は画面の外である（実測で幅 491px、右端が 1979px と画面より 59px 外）。
-	# `AUTO` なので、入り切るあいだは横の帯は出ない。
+	# 横も流す。流せないと行の最小幅が枠の最小幅になり、`PanelContainer` が指定を
+	# 無視して画面の外へ広がる。
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	column.add_child(scroll)
 	_scroll = scroll
 
-	# 部品が持つ行は、作品が足す行より上に、別の置き場で持つ。`clear_items()`
-	# で消える側へ混ぜると、作品が場面を切り替えるたびに音量の行まで消える。
 	var stack := VBoxContainer.new()
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(stack)
@@ -727,32 +632,20 @@ func _build_panel() -> void:
 
 	column.add_child(HSeparator.new())
 
-	# 何をしたかを返す一行。押した結果が見えないと、効いたのかどうか分からない。
 	_status_label = Label.new()
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_child(_status_label)
 
 	_layout_panel()
-	# 画面の大きさが変わったら置き直す。窓を掴んで縮めたときも、全画面へ
-	# 切り替えたときも、板は画面の中に残る。
+	# 画面の大きさが変わっても板が画面の中に残るように置き直す。
 	var viewport := get_viewport()
 	if viewport != null and not viewport.size_changed.is_connected(_layout_panel):
 		viewport.size_changed.connect(_layout_panel)
 
-## 板を画面の中へ収める。
-##
-## **どれだけ広がるかは、この部品からは決められない。**行を足すのは作品側で、
-## 板を作った後に足される。指定した大きさ（`panel_size`）より広い行が1つでも
-## 来ると、`PanelContainer` はその最小の幅まで広がり、はみ出したぶんがそのまま
-## 画面の外へ出ていた（2026-08-23 の監修「デバッグメニューを開いたときに画面が
-## 画面外に行ってしまっている」）。
-##
-## 指定はあくまで目安として扱う。
-##
-## - 中身が指定より広ければ、入るところまで広げる
-## - 画面に入らなければ、そこで止めて中を流す（横も縦も）
-## - 収めたうえで、画面の外へ出ない場所へ置く
+## `panel_size` は目安。指定より広い行が来ると `PanelContainer` はその最小幅まで
+## 広がるので、画面に入るところまで広げ、入らなければ止めて中を流し、画面の外へ
+## 出ない場所へ置く。
 func _layout_panel() -> void:
 	if not is_instance_valid(_panel):
 		return
@@ -761,19 +654,16 @@ func _layout_panel() -> void:
 		return
 	var view := viewport.get_visible_rect().size
 	var margin: Vector2 = settings.button_margin
-	# 釦と重ならない高さ。板は釦の下（上の隅なら）か上（下の隅なら）へ出す。
-	# 中央に出すときは釦を避けないので要らない。
+	# 釦と重ならない高さ。中央に出すときは釦を避けない。
 	var reserved: float = 0.0 if settings.modal else settings.button_size.y + PANEL_GAP
 	var available := Vector2(
 		maxf(view.x - margin.x * 2.0, 1.0),
 		maxf(view.y - margin.y * 2.0 - reserved, 1.0))
-	# 中身が要る幅。板の内側の余白と、縦の帯のぶんを足す。
 	var wanted: float = settings.panel_size.x
 	if is_instance_valid(_stack):
 		wanted = maxf(wanted, _stack.get_combined_minimum_size().x + _panel_inner_width())
 	var size := Vector2(minf(wanted, available.x), minf(float(settings.panel_size.y), available.y))
-	# **これ以上は縮まない**という大きさがある（余白と一行ぶん）。画面が
-	# それより狭いときは縮められないので、せめて左上より外へは出さない。
+	# 余白と一行ぶんより縮まないので、画面がそれより狭いときは左上だけ守る。
 	size = size.max(_panel.get_combined_minimum_size())
 	var to_left: bool = settings.button_corner in ["top_left", "bottom_left"]
 	var to_top: bool = settings.button_corner in ["top_left", "top_right"]
@@ -782,7 +672,7 @@ func _layout_panel() -> void:
 		margin.y + reserved if to_top else view.y - margin.y - reserved - size.y)
 	if settings.modal:
 		position = ((view - size) * 0.5).floor()
-	# 端で丸める。指定した余白が画面より大きいときでも、外へは出さない。
+	# 指定した余白が画面より大きくても外へ出さない。
 	position.x = clampf(position.x, 0.0, maxf(view.x - size.x, 0.0))
 	position.y = clampf(position.y, 0.0, maxf(view.y - size.y, 0.0))
 	_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
@@ -791,7 +681,6 @@ func _layout_panel() -> void:
 	_panel.offset_right = position.x + size.x
 	_panel.offset_bottom = position.y + size.y
 
-## 板の内側で、中身に使えない幅（左右の余白と縦の帯）。
 func _panel_inner_width() -> float:
 	var style := _panel.get_theme_stylebox("panel") as StyleBoxFlat
 	var width := 0.0
@@ -801,12 +690,6 @@ func _panel_inner_width() -> float:
 		width += _scroll.get_v_scroll_bar().get_combined_minimum_size().x
 	return width
 
-## 板で使うテーマを作る。書体の指定が無ければ `null` を返し、既定のままにする。
-##
-## 既定の書体は日本語の字を持たない。卓上では実行環境の書体が肩代わりするため
-## 気付けないが、肩代わりの無い環境（Webへ書き出したもの）では日本語がすべて
-## 豆腐になる。実際に配ったWeb版で、板の項目名が全部四角になっていた。
-## 音量の行。部品が持つ数少ない中身の1つ。
 func _build_volume_row() -> void:
 	var slider := _build_slider_row("音量 (%s)" % settings.volume_bus,
 		_volume_multiplier,
@@ -817,8 +700,7 @@ func _build_volume_row() -> void:
 	_builtins.add_child(slider.get_parent())
 	_builtins.add_child(HSeparator.new())
 
-## 板と隅の釦のテーマ。作品のテーマ（`gui/theme/custom`）は飾りのためのもので、道具の板には
-## 合わないので借りない。釦・入力欄・文字の色をここで決め、どの作品でも同じ見た目にする。
+## 作品のテーマ（`gui/theme/custom`）は借りない。飾りのテーマでは道具の釦が釦に見えない。
 func _ui_theme() -> Theme:
 	if _theme != null:
 		return _theme
@@ -834,8 +716,6 @@ func _ui_theme() -> Theme:
 	_apply_control_styles(_theme)
 	return _theme
 
-## 釦は「押せる物」と分かる形にする：濃い灰の地に灰の縁。触れると明るく、押すと青、
-## 押せないときは文字ごと沈める。入力欄は地を一段暗くして釦と見分ける。
 func _apply_control_styles(theme: Theme) -> void:
 	var text := Color(0.92, 0.93, 0.95)
 	var muted := Color(0.5, 0.52, 0.56)

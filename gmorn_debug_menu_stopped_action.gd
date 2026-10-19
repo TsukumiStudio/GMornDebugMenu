@@ -22,7 +22,7 @@ func _process(_delta: float) -> void:
 	$Action.tooltip_text = "ゲーム停止中のみ操作できます" if playing else action_text
 
 func _pressed() -> void:
-	# 無効ボタンのsignalを直接呼ばれても、再生中は実行しない。
+	# 無効な釦の signal を直接呼ばれても、再生中は実行しない。
 	if bool(is_playing.call()):
 		_armed_until = 0
 		$Status.text = "ゲームを停止してから操作してください"

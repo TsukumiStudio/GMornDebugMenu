@@ -1,43 +1,30 @@
 @tool
 extends EditorPlugin
 
-## GMornDebugMenu を組み込むための入口。
-##
-## 板はどの場面でも同じ隅に居てほしいので、自動読み込みに登録する。
-## 実行中の項目をエディタから見て操れるように、デバッガパネルとドックを足す。
-
 const AUTOLOAD_NAME := "GMornDebugMenu"
 const DebuggerPluginScript := preload("gmorn_debug_menu_debugger_plugin.gd")
 const TabScript := preload("gmorn_debug_menu_debugger_tab.gd")
 const DockScript := preload("gmorn_debug_menu_dock.gd")
 const SectionScannerScript := preload("gmorn_debug_menu_section_scanner.gd")
 
-## 実行中プロセス連携UIを載せる既定セクションの id とタイトル。
 const PROCESS_SECTION_ID := &"process"
 const PROCESS_SECTION_TITLE := "実行中プロセス"
 
-## 他アドオンが `Engine.get_meta(&"gmorn_debug_menu_dock")` でドックの中身
-## (`gmorn_debug_menu_dock.gd` のインスタンス) を見つけるための鍵。
-## README.md の「9. ドックへセクションを足す」を参照。
+## 他アドオンが `Engine.get_meta()` でドックの中身を見つけるための鍵。
 const DOCK_META_KEY := &"gmorn_debug_menu_dock"
 
 var _debugger_plugin: EditorDebuggerPlugin
-## エディタに常時表示するドック。中身は `gmorn_debug_menu_dock.gd` で、
-## セクションを縦に並べる。実行中プロセス連携UIも1つのセクションとして載る。
 var _dock: EditorDock
 var _dock_content: Control
-## 既定セクション（実行中プロセス連携UI）の中身。`gmorn_debug_menu_debugger_tab.gd`。
 var _process_section: Control
 
-## 置き場所を決め打ちにしない。submodule で好きな名前の場所へ入れられるように、
-## 自分の居場所から辿る。
+## 置き場所を決め打ちにしない。submodule で任意の場所へ入れられるよう自分の居場所から辿る。
 func _autoload_path() -> String:
 	return get_script().resource_path.get_base_dir().path_join("gmorn_debug_menu.gd")
 
 func _enter_tree() -> void:
 	_register_settings()
-	# 既に登録済みなら足さない。毎回足すとエディタの起動ごとに「自動読み込みを追加」の
-	# 履歴が（アドオンの数だけ）並ぶ。project.godot に書いてあれば、それで動く。
+	# 登録済みなら足さない。毎回足すとエディタ起動ごとに「自動読み込みを追加」の履歴が並ぶ。
 	if not ProjectSettings.has_setting("autoload/" + AUTOLOAD_NAME):
 		add_autoload_singleton(AUTOLOAD_NAME, _autoload_path())
 	_debugger_plugin = DebuggerPluginScript.new()
@@ -60,9 +47,7 @@ func _enter_tree() -> void:
 	_debugger_plugin.bind_dock(_process_section)
 	Engine.set_meta(DOCK_META_KEY, _dock_content)
 
-## `gmorn_debug_menu_section_scanner.gd` が見つけた `.tres` を、ドックへ
-## セクションとして足す。`.tres` を足すだけで増える側で、既存の
-## `register_section()` を直に呼ぶ側とは独立している（両方を同時に使ってよい）。
+## `.tres` 駆動のセクション。`register_section()` を直に呼ぶ側と両方同時に使ってよい。
 func _register_tres_sections() -> void:
 	for section: Resource in SectionScannerScript.scan():
 		var control: Control = section.create_control()
@@ -87,13 +72,9 @@ func _exit_tree() -> void:
 	_dock_content = null
 	_process_section = null
 
-## 設定の既定値と型をプロジェクト設定へ登録する。
-##
-## 登録が無いと「プロジェクト設定」画面で全項目に戻す印（回転の矢印）が付き、
-## どれを変えたのか分からない。パスは選択の窓から、列挙は一覧から選べるようにする。
-## 値は読む側（既定値）と同じにすること。読む側はここに依らず、無くても動く。
+## 既定値を登録しないと「プロジェクト設定」で全項目に戻す印が付き、どれを変えたか
+## 分からない。値は読む側の既定値と同じにする。読む側はこの登録が無くても動く。
 func _register_settings() -> void:
-	# `section_dir` はドックの節（.tres）の置き場（gmorn_debug_menu_section_scanner.gd）。
 	for row in [
 		["enabled", true, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
 		["build_when_headless", false, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
