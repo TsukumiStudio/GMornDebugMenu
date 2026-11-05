@@ -53,7 +53,6 @@ var _builtins: VBoxContainer
 ## 二度押しの世代。古い待ちが新しい構えを解かないように数える。
 var _confirm_generation := 0
 
-# --- エディタのデバッガパネルとの橋渡し（仕様は README.md） ------------------
 
 ## エディタ側の `_has_capture()` と揃える。
 const BRIDGE_NAME := "gmorn_debug_menu"
@@ -124,7 +123,6 @@ func set_status(message: String) -> void:
 func set_category(path: String) -> void:
 	_category = "/".join(path.split("/", false))
 
-# --- 項目を足す -------------------------------------------------------------
 
 func add_button(label: String, action: Callable, row_group := "") -> Button:
 	var button := Button.new()
@@ -375,7 +373,6 @@ func clear_items() -> void:
 		return
 	# 世代を進め、構えている釦の待ちが明けても消えた釦へ書き込まないようにする。
 	_confirm_generation += 1
-	# 開閉を覚えてから消す。
 	for path: String in _category_boxes:
 		var fold := (_category_boxes[path] as Node).get_parent().get_parent() as FoldableContainer
 		_category_folded[path] = fold.folded
@@ -389,7 +386,6 @@ func clear_items() -> void:
 	if _bridge_active:
 		EngineDebugger.send_message("%s:clear" % BRIDGE_NAME, [])
 
-# --- 中身 -------------------------------------------------------------------
 
 func _add_item(control: Control) -> void:
 	if not is_instance_valid(_items):
@@ -425,7 +421,6 @@ func _category_box(path: String) -> VBoxContainer:
 	_category_boxes[path] = box
 	return box
 
-# --- エディタのデバッガパネルとの橋渡し --------------------------------------
 
 func _bridge_setup() -> void:
 	if not EngineDebugger.is_active():
@@ -500,7 +495,6 @@ func _bridge_set_value(id: int, value: Variant) -> void:
 	if entry.has("set_value"):
 		(entry.set_value as Callable).call(value)
 
-## 値が変わった項目だけを送る。
 func _bridge_poll_values() -> void:
 	for id: int in _bridge_items.keys():
 		var entry: Dictionary = _bridge_items[id]
@@ -638,14 +632,11 @@ func _build_panel() -> void:
 	column.add_child(_status_label)
 
 	_layout_panel()
-	# 画面の大きさが変わっても板が画面の中に残るように置き直す。
 	var viewport := get_viewport()
 	if viewport != null and not viewport.size_changed.is_connected(_layout_panel):
 		viewport.size_changed.connect(_layout_panel)
 
-## `panel_size` は目安。指定より広い行が来ると `PanelContainer` はその最小幅まで
-## 広がるので、画面に入るところまで広げ、入らなければ止めて中を流し、画面の外へ
-## 出ない場所へ置く。
+## `PanelContainer` は行の最小幅まで広がるため、画面幅で制限し、収まらない中身はスクロールする。
 func _layout_panel() -> void:
 	if not is_instance_valid(_panel):
 		return

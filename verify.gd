@@ -37,7 +37,7 @@ func _run() -> void:
 	quiet.toggle()
 	assert(not quiet.is_open(), "板が無いのに開いた")
 
-	# --- 橋渡し。`EngineDebugger` に繋がっていなくても記録は続き、`_bridge_*` を直に呼べる。
+	# 橋渡し。`EngineDebugger` に繋がっていなくても記録は続き、`_bridge_*` を直に呼べる。
 	assert(quiet._bridge_items.size() == 3, "板の無い側でも記録が %d 件" % quiet._bridge_items.size())
 	var snapshot: Array = quiet._bridge_snapshot()
 	assert(snapshot.size() == 3, "一覧の数が %d" % snapshot.size())
@@ -342,7 +342,7 @@ func _run() -> void:
 	assert(slid.size() == 1 and is_equal_approx(slid[0], 0.8),
 		"動かしても渡らない: %s" % str(slid))
 
-	# --- どんな行を足しても、板は画面の中に収まる。
+	# どんな行を足しても、板は画面の中に収まる。
 	ProjectSettings.set_setting("gmorn_debug_menu/font_size", 0)
 	# ヘッドレスの既定 64×64 では何を置いてもはみ出すので、画面の広さを決めてから測る。
 	root.size = Vector2i(1280, 720)
@@ -455,7 +455,7 @@ func _run() -> void:
 	# 次の走に置き土産を残さない。
 	_forget_stored_volume()
 
-	# --- 項目UI（gmorn_debug_menu_debugger_tab.gd）。本物の EditorDebuggerSession は
+	# 項目UI（gmorn_debug_menu_debugger_tab.gd）。本物の EditorDebuggerSession は
 	# エディタの中でしか作れないので、繋がない側の分岐だけを見る。
 	var tab_script: GDScript = load(
 		"res://addons/gmorn_debug_menu/gmorn_debug_menu_debugger_tab.gd")
@@ -480,7 +480,7 @@ func _run() -> void:
 	pressless_button.pressed.emit()
 	tab.queue_free()
 
-	# --- ドックのセクション（gmorn_debug_menu_dock.gd）。`plugin.gd` はエディタでしか動かない。
+	# ドックのセクション（gmorn_debug_menu_dock.gd）。`plugin.gd` はエディタでしか動かない。
 	var dock_script: GDScript = load(
 		"res://addons/gmorn_debug_menu/gmorn_debug_menu_dock.gd")
 	var dock: VBoxContainer = dock_script.new()
@@ -529,7 +529,7 @@ func _run() -> void:
 	dock.unregister_section(&"存在しない")
 	dock.queue_free()
 
-	# --- .tres 駆動のセクション（gmorn_debug_menu_section.gd / _scanner.gd）。
+	# .tres 駆動のセクション（gmorn_debug_menu_section.gd / _scanner.gd）。
 	var scanner_script: GDScript = load(
 		"res://addons/gmorn_debug_menu/gmorn_debug_menu_section_scanner.gd")
 	var section_dir_path: String = scanner_script.section_dir()
