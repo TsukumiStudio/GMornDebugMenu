@@ -77,6 +77,7 @@ func _exit_tree() -> void:
 func _register_settings() -> void:
 	for row in [
 		["enabled", true, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
+		["runtime_buttons_enabled", true, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
 		["build_when_headless", false, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
 		["button_corner", "top_right", TYPE_STRING, PROPERTY_HINT_ENUM, "top_left,top_right,bottom_left,bottom_right"],
 		["button_width", 40.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "8,400,1"],

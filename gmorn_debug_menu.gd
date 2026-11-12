@@ -554,6 +554,7 @@ func _build_ui() -> void:
 		else -settings.button_size.y - settings.button_margin.y
 	_button.offset_bottom = _button.offset_top + settings.button_size.y
 	_button.modulate.a = settings.button_alpha
+	_button.visible = settings.runtime_buttons_enabled
 	_button.pressed.connect(toggle)
 	_button.theme = _ui_theme()
 	add_child(_button)

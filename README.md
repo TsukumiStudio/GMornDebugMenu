@@ -111,6 +111,7 @@ if menu != null:
 | 項目 | プロジェクト設定 | 環境変数 | 既定 |
 | --- | --- | --- | --- |
 | 板を作るか | `gmorn_debug_menu/enabled` | `GMORN_DEBUG_MENU_DISABLED=1` で切る | `true` |
+| 右上の開発・報告ボタンを表示するか | `gmorn_debug_menu/runtime_buttons_enabled` | — | `true` |
 | 画面が無くても作るか | `gmorn_debug_menu/build_when_headless` | — | `false` |
 | 釦を置く隅 | `gmorn_debug_menu/button_corner` | — | `top_right` |
 | 釦の大きさ | `gmorn_debug_menu/button_width` / `button_height` | — | `40` / `40` |

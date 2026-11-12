@@ -5,6 +5,8 @@ extends RefCounted
 
 ## 既定は有効。開発中だけの機能だと、配ったものに触ってもらったときに状況を作れない。
 var enabled := true
+## 右上に置く開発用・報告用ボタンをまとめて表示する。
+var runtime_buttons_enabled := true
 ## 板そのものを検証したいときだけ true。
 var build_when_headless := false
 var button_corner := "top_right"
@@ -39,6 +41,7 @@ const SETTING_PREFIX := "gmorn_debug_menu/"
 
 func load_from_environment() -> void:
 	enabled = bool(_setting("enabled", enabled))
+	runtime_buttons_enabled = bool(_setting("runtime_buttons_enabled", runtime_buttons_enabled))
 	build_when_headless = bool(_setting("build_when_headless", build_when_headless))
 	button_corner = String(_setting("button_corner", button_corner))
 	button_size = Vector2(
